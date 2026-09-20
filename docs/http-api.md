@@ -13,7 +13,7 @@ cp .env.example .env
 bun run serve
 ```
 
-`serve` 自动准备 Python 依赖，不打开浏览器；进程运行期间可访问 `http://127.0.0.1:3000`。Ctrl+C 停止服务。可用 `PORT=3010 bun run serve` 修改端口。AIStock 的依赖和 context_only 入口按 [README](../README.md) 准备。
+`serve` 自动准备 Python 依赖，不打开浏览器；进程运行期间可访问 `http://127.0.0.1:3000`。Ctrl+C 停止服务。可用 `PORT=3010 bun run serve` 修改端口。AIStock 的依赖和 context_only 入口按 [README](../README.zh-CN.md) 准备。
 
 服务默认仅监听本机，当前不提供远程监听或多用户托管。Jev 密钥在服务端配置，调用方无需每次传入。网页只是同一服务的辅助配置和查看界面。
 

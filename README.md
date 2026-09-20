@@ -2,84 +2,84 @@
 
 # Jev Trading
 
-[简体中文](README.md) · [English](README.en.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-### 纯净、快速接入、成本可控的股票决策服务
+### Focused stock decisions. Quick integration. Costs you control.
 
-**官方 Jev API / 本地模型，两种方式，同一个 HTTP 接口。**<br>
-把行情、指标与市场信息转成可供程序使用的 **买入 / 卖出 / 观望** 决策。
+**Official Jev API or a local model. One HTTP interface.**<br>
+Turn market data, indicators, and context into machine-readable **buy / sell / hold** decisions.
 
 **Official API + Local Models** · **HTTP First** · **Self-hosted** · **Auditable**
 
-[快速开始](#quickstart) · [选择云端或本地](#local-inference) · [真实分析](#live) · [HTTP API](#api) · [工作原理](#architecture) · [界面预览](#preview) · [常见问题](#faq)
+[Quick start](#quickstart) · [Cloud or local](#local-inference) · [Live analysis](#live) · [HTTP API](#api) · [Architecture](#architecture) · [Preview](#preview) · [FAQ](#faq)
 
 </div>
 
 ---
 
-## 为你的交易工作流，提供一个轻量决策接口
+## A lightweight decision API for your trading workflow
 
-**Jev Trading 是你自己部署、自己调用的股票决策服务。** 提交股票代码、持仓状态和分析周期，获得结构化的 `buy / sell / hold`、动作概率、风控结果与决策依据。可直接接入脚本、研究工具或你自己的交易系统。
+**Jev Trading is a stock decision service you deploy and call yourself.** Submit a symbol, position state, and evaluation horizon. Receive structured `buy / sell / hold` decisions, action probabilities, policy results, and supporting evidence. Integrate it with scripts, research tools, or your own trading system.
 
-默认使用 **Jev 官方 API**，无需在本机运行模型；也可以连接 **本地决策引擎**，使用自行下载并部署的开放权重模型。网页和 HTTP API 都支持这两种方式，切换模型运行位置不需要重写业务调用流程。
+Use the **official Jev API** by default without running a model on your machine, or connect the **Local Decision Engine** to open-weight models you download and deploy. Both the web interface and HTTP API support both modes. Changing where inference runs keeps your application’s calling workflow intact.
 
-本项目提供可自行运行的服务程序，网页用于配置、体验和查看历史。决策服务运行在你的机器上，当前输出交易信号，订单执行由你的系统负责。
+This project provides self-hosted service software, with an optional web interface for setup, exploration, and history. It produces trading signals; your own system handles order execution.
 
-## 为什么选择 Jev Trading？
+## Why Jev Trading?
 
-| 特点 | 对你的价值 | 当前实现 |
+| Feature | What you gain | How it works today |
 | --- | --- | --- |
-| **纯净：专注决策** | 拿到程序能消费的结果 | 复用 AIStock 数据与指标，跳过长报告、报告 Agent 与通知流程，直接进行动作分类 |
-| **快速：接入路径短** | 一个接口接入已有工作流 | POST 提交，完成后返回 JSON；耗时任务异步查询，附带 Python 调用示例 |
-| **省钱：减少重复工作** | 把预算用于需要的判断 | 不额外生成研究报告；相同参数与幂等标识复用任务，本项目不自动重试模型请求 |
-| **云端 / 本地自由选择** | 根据设备与使用频率安排推理 | 默认官方 API；本地模式不需要 Jev 云端密钥，同一请求格式切换 `backend` |
-| **多源信息，直接分类** | 保留单股分析的数据基础 | 行情、K 线、技术指标、基本面、新闻、筹码与市场环境；记录数据缺失与降级 |
-| **模型判断有程序约束** | 看清建议与最终允许动作的区别 | 保留 `model_action` 和 `final_action`，校验数据时效、持仓方向、概率及市场条件 |
-| **过程可追溯** | 能回看一次决策为什么产生 | SQLite 保存输入快照、原始响应、推理来源及限制原因，支持导出 |
-| **无需前端也能使用** | 自动化调用与人工查看都方便 | 本地 HTTP 服务独立运行；可选网页提供连接设置、进度、历史及无需密钥的演示 |
+| **Focused on decisions** | Results your programs can consume | Reuse AIStock data and indicators, skip long reports, report agents, and notifications, and classify actions directly |
+| **Quick to integrate** | A short path into your workflow | Submit a POST and receive JSON or poll an asynchronous task; a Python client example is included |
+| **Less redundant work** | More control over inference spending | No extra research report; matching inputs and idempotency keys reuse a task; this app does not automatically retry model requests |
+| **Cloud or local** | Choose for your hardware and usage | Official API by default; local inference needs no Jev cloud key; switch with `backend` in the same request format |
+| **Multiple sources, direct classification** | Keep the substance of stock analysis | Quotes, bars, technicals, fundamentals, news, trading-cost distribution data, and market context, with missing/degraded data states |
+| **Programmatic checks** | See what the model suggested and what was allowed | Separate `model_action` and `final_action`; check freshness, positions, probabilities, and market conditions |
+| **Traceable decisions** | Inspect how a result was produced | SQLite snapshots, raw responses, inference provenance, restriction reasons, and evidence export |
+| **No browser required** | Automate calls and review manually when useful | Standalone local HTTP service; optional web settings, progress, history, and a key-free demo |
 
-### 快与省，来自更短的决策流程
+### A shorter path from analysis to action
 
 ```text
-股票 + 持仓 + 分析周期
-          ↓
-多源数据与确定性指标
-          ↓
-Jev 官方 API / 本地决策引擎
-          ↓
-程序校验 → buy / sell / hold → 你的工作流
+Symbol + position + evaluation horizon
+                  ↓
+Market data + deterministic indicators
+                  ↓
+Official Jev API / Local Decision Engine
+                  ↓
+Policy checks → buy / sell / hold → your workflow
 ```
 
-直接分类省去了长报告生成环节；幂等调用避免把网络重发变成新的分析任务。本地模式可避免 Jev 云端推理调用费，但仍有硬件、电力及可能的数据费用。实际延迟与总成本取决于数据采集、模型和设备；当前没有端到端速度或节省比例的基准承诺。
+Direct classification removes long-report generation. Idempotency prevents a network resend from starting another analysis. Local inference avoids Jev cloud inference charges, while hardware, electricity, and possible data fees remain. Actual latency and total cost depend on data collection, model, and hardware; no end-to-end speed or savings benchmark is claimed.
 
-## 选择适合你的运行方式
+## Choose where your model runs
 
-| | Jev 官方 API · 默认 | 本地决策引擎 |
+| | Official Jev API · default | Local Decision Engine |
 | --- | --- | --- |
-| 适合 | 希望快速开始，不维护模型运行器 | 已有适配设备，希望自行控制模型与推理资源 |
-| 你需要准备 | 官方 API Key、数据采集环境 | 模型权重、兼容推理服务、数据采集环境 |
-| 模型计算位置 | Jev 云端 | 你部署的本地服务 |
-| 主要成本 | 官方 API 使用费用及数据费用 | 设备、电力、维护及数据费用 |
-| 调用方式 | `"backend": "jev"` | `"backend": "local"` |
+| Best suited to | Getting started without maintaining a model runtime | Using compatible hardware and controlling your own inference resources |
+| Prepare | Official API key and data collection environment | Model weights, compatible inference service, and data collection environment |
+| Inference location | Jev cloud | Your local service |
+| Main costs | Official API usage and data fees | Hardware, electricity, maintenance, and data fees |
+| Request option | `"backend": "jev"` | `"backend": "local"` |
 
-任务和审计记录保存在本机。云端方式会把分析上下文发送给 Jev；本地方式的模型推理在本机完成，行情与新闻采集仍可能联网。两种方式共用同一套 HTTP 接口与决策校验。
+Tasks and audit records stay on your machine. Cloud mode sends analysis context to Jev. Local mode runs model inference locally, while market and news collection may still use the network. Both modes share the same HTTP interface and decision checks.
 
 <a id="quickstart"></a>
-## 快速开始：先跑通一次 HTTP 调用
+## Quick start: make your first HTTP call
 
-### 1. 准备运行环境
+### 1. Prerequisites
 
-| 依赖 | 用途 | 演示是否需要 |
+| Dependency | Purpose | Needed for demo? |
 | --- | --- | --- |
-| [Bun](https://bun.sh) | HTTP 服务、网页和 Jev SDK | 需要 |
-| [uv](https://docs.astral.sh/uv/getting-started/installation/) | 准备本项目 Python 环境 | 需要 |
-| Python ≥ 3.12 | 数据合同、校验与审计；由 uv 管理环境 | 需要 |
-| AIStock checkout 及其依赖 | 真实股票的数据采集 | 不需要 |
-| Jev API Key | 云端模型判断，本地后端不需要 | 不需要 |
+| [Bun](https://bun.sh) | HTTP server, web UI, and Jev SDK | Yes |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Set up this project's Python environment | Yes |
+| Python ≥ 3.12 | Data contracts, validation, and audit; environment managed by uv | Yes |
+| AIStock checkout and dependencies | Collect real stock data | No |
+| Jev API key | Cloud inference only; not needed by local backends | No |
 
-已在 macOS 环境验证。启动脚本使用 POSIX shell 和 `.venv/bin/python` 路径，Windows 原生运行尚未验证。
+Validated on macOS. Startup scripts use a POSIX shell and `.venv/bin/python`; native Windows operation has not been verified.
 
-### 2. 获取并启动项目
+### 2. Clone and start
 
 ```sh
 git clone --recurse-submodules https://github.com/EthanAlgoX/jev-trading.git
@@ -88,18 +88,13 @@ bun install --frozen-lockfile
 bun run serve
 ```
 
-启动器会执行 `uv sync --frozen --no-dev`，准备本项目的 Python 依赖。首次运行需要联网下载依赖。
+The launcher runs `uv sync --frozen --no-dev` to prepare Python dependencies. The first run needs an internet connection to download dependencies. The service listens at **http://127.0.0.1:3000**; startup messages are currently in Simplified Chinese.
 
-```text
-Jev 股票决策工作台已启动：http://127.0.0.1:3000
-HTTP API：POST /v1/decisions，健康检查：GET /v1/health。
-```
+Keep the terminal running. Press `Ctrl+C` to stop. Use `PORT=3010 bun run serve` to change the port.
 
-保持该终端运行；`Ctrl+C` 停止服务。修改端口可用 `PORT=3010 bun run serve`。
+### 3. Submit a demo decision
 
-### 3. 提交一个演示决策
-
-另开终端：
+In another terminal:
 
 ```sh
 curl -sS http://127.0.0.1:3000/v1/decisions \
@@ -108,7 +103,7 @@ curl -sS http://127.0.0.1:3000/v1/decisions \
   -d '{"mode":"demo","position":"flat"}'
 ```
 
-下面是**成功完成时的精简响应示例**，省略配置、时间和审计字段。演示概率来自固定响应，不是在线推理结果。
+The following is an **abbreviated completed response**, omitting configuration, timestamps, and audit fields. Demo probabilities come from a fixed response, not live inference.
 
 ```json
 {
@@ -128,31 +123,31 @@ curl -sS http://127.0.0.1:3000/v1/decisions \
 }
 ```
 
-如果返回 HTTP **202**，表示分析仍在进行；按响应中的 `links.self` 查询即可。演示不会自动切换成付费推理。
+HTTP **202** means analysis is still running. Query the path in `links.self`. A demo never automatically switches to paid inference.
 
-### 4. 使用封装好的客户端
+### 4. Use the bundled client
 
 ```sh
-# 无第三方 Python HTTP 依赖，自动提交并轮询
+# Submit and poll automatically; no third-party Python HTTP package needed
 python3 examples/http_client.py --demo
 
-# 查询已有任务，不重新调用模型
+# Resume an existing task without another model call
 python3 examples/http_client.py --request-id "YOUR_REQUEST_ID"
 ```
 
-[Python 客户端源码](examples/http_client.py) 可作为你接入其他应用的起点。
+The [Python client](examples/http_client.py) is a starting point for integrating your application.
 
 <a id="local-inference"></a>
-## 选择调用方式：Jev 云端或本地决策引擎
+## Choose a mode: Jev Cloud or Local Decision Engine
 
-| 调用方式 | 概率来源 | 需要云端密钥 |
+| Mode | Probability source | Cloud key required |
 | --- | --- | --- |
-| `jev` (默认) | 提供商返回的分类概率 | 是 |
-| `local` | 本地决策引擎；支持下述两种计算方式 | 否 |
+| `jev` (default) | Provider-reported classification probabilities | Yes |
+| `local` | Local Decision Engine; two calculation methods below | No |
 
-本地决策引擎是本项目的统一接入名称。`logprobs` 读取候选标签分数并用 softmax 归一化；`generated` 让模型生成概率 JSON，再校验与归一化。两者不是同一种统计方法，结果分别记录 `label_logprobs` 和 `generated_probabilities`。
+Local Decision Engine is this project’s unified integration name. `logprobs` normalizes candidate-label scores with softmax; `generated` asks a model for probability JSON, then validates and normalizes it. These are different statistical methods, recorded as `label_logprobs` and `generated_probabilities`.
 
-先按 [本地部署指南](docs/local-inference.md) 下载并加载模型、启动兼容服务，再配置：
+Download and load a model and start a compatible service using the [local deployment guide](docs/local-inference.md), then configure:
 
 ```dotenv
 JEV_BACKEND=local
@@ -161,9 +156,9 @@ JEV_LOCAL_BASE_URL=http://127.0.0.1:8000
 JEV_LOCAL_MODEL=jev-latest
 ```
 
-网页与 HTTP 共用这些配置。保存的网页设置优先于环境变量。运行 `bun run backend:check` 检查连接；`bun run serve` 启动服务。本项目不捆绑权重，普通聊天接口需经过兼容适配。部署实现与来源说明见指南。
+Web and HTTP share these settings. Saved settings override environment variables. Run `bun run backend:check`, then `bun run serve`. We do not bundle weights; ordinary chat endpoints need a compatible adapter. See the guide for deployment implementations and attribution.
 
-网页选择并保存默认调用方式，HTTP 请求可用 `backend` 单独选择，不改变默认值。默认优先 Jev 云端；本地方式失败不会自动转到云端。高级调用可加 `localEngine: "generated"` 或 `"logprobs"`，省略则沿用本地配置。
+Save the default mode in the web settings, or select `backend` per HTTP request without changing the default. Jev Cloud is the default; local failures do not fall back to cloud. Advanced requests can set `localEngine` to `generated` or `logprobs`; omission uses the configured local method.
 
 ```sh
 curl -sS http://127.0.0.1:3000/v1/decisions \
@@ -174,30 +169,30 @@ python3 examples/http_client.py --symbol 600519 --backend local
 ```
 
 <a id="live"></a>
-## 连接真实数据与推理服务
+## Connect live data and inference
 
-两种推理方式共用下面的 AIStock 数据准备步骤。云端模式再配置 Jev API Key；本地模式按 [本地部署指南](docs/local-inference.md) 启动兼容服务，无需云端密钥。
+Both inference modes share the AIStock setup below. Cloud mode additionally requires a Jev API key. For local mode, start a compatible service using the [local deployment guide](docs/local-inference.md); no cloud key is needed.
 
-### 准备 AIStock
+### Prepare AIStock
 
-AIStock 负责采集和指标计算，使用它自己的 Python 环境。本项目提供 `context_only` 补丁，让单股流水线在报告生成前返回分析数据。
+AIStock collects data and computes indicators in its own Python environment. The supplied `context_only` patch returns analysis data before report generation.
 
-推荐的目录布局之一：
+One supported layout:
 
 ```text
 workspace/
-├── AI-Stock/                 # 数据源配置及独立 Python 环境
+├── AI-Stock/                 # Data-source config and separate Python environment
 │   └── .venv/bin/python
 └── reference/
-    └── jev-trading/           # 当前项目及独立 Python 环境
+    └── jev-trading/           # This project and its own Python environment
 ```
 
-服务会查找同级、上两级或项目内的 `AI-Stock`。其他路径可显式配置。先依照 AIStock 自身说明安装依赖、配置所需数据源，再检查其是否具备 `context_only` 入口。
+The service searches for `AI-Stock` beside the project, two levels up, or inside the project. Other paths can be configured explicitly. Follow AIStock's own instructions to install dependencies and configure data sources, then check for the `context_only` entry point.
 
 <details>
-<summary><strong>尚未包含采集入口？展开查看补丁应用方式</strong></summary>
+<summary><strong>Missing the collection entry point? Apply the patch</strong></summary>
 
-替换为实际绝对路径：
+Replace these with actual absolute paths:
 
 ```sh
 cd /path/to/AI-Stock
@@ -205,46 +200,46 @@ git apply --check /path/to/jev-trading/patches/aistock-context-only.patch
 git apply /path/to/jev-trading/patches/aistock-context-only.patch
 ```
 
-已应用补丁的 checkout 不要重复应用。检查失败时先核对版本及本地改动，不要强制覆盖。补丁边界及验证记录见 [首版实现记录](docs/implementation.md)。
+Do not reapply an existing patch. If the check fails, inspect version compatibility and local changes rather than forcing an overwrite. See the [initial implementation notes](docs/implementation.md) for scope and validation.
 
-采集不生成原研究报告或发送通知。数据缓存写入本项目 `data/aistock.db`，不写入 AIStock 原有研究账本。
+Collection does not generate the original research report or send notifications. Its cache is written to this project's `data/aistock.db`, not AIStock's existing research database.
 
 </details>
 
-### 配置服务端环境
+### Configure the server
 
 ```sh
 cp .env.example .env
 ```
 
-编辑 `.env`：
+Edit `.env`:
 
 ```dotenv
 TYPESAFE_AI_API_KEY=your_jev_api_key
 JEV_MODEL_ID=jev-latest
 PORT=3000
 
-# 自动发现失败时填写实际路径
+# Set actual paths if automatic discovery fails
 AISTOCK_PATH=/path/to/AI-Stock
 AISTOCK_PYTHON=/path/to/AI-Stock/.venv/bin/python
 ```
 
-密钥可通过 [TypeSafe 控制台](https://console.typesafe.ai) 配置。完成后重启服务并检查：
+Configure your key through the [TypeSafe console](https://console.typesafe.ai). Restart and check the service:
 
 ```sh
 bun run doctor
 bun run serve
 ```
 
-在另一终端调用健康接口：
+In another terminal, check health:
 
 ```sh
 curl -sS http://127.0.0.1:3000/v1/health
 ```
 
-`ready: true` 表示本机配置检查通过。检查涵盖路径、解释器文件、采集入口及密钥是否存在，**不代表已验证外部数据源或密钥可用性**。
+`ready: true` means local configuration checks passed: paths, interpreter file, collection entry point, and key presence. It **does not verify external data connectivity or key validity**.
 
-### 提交真实分析
+### Submit live analysis
 
 ```sh
 curl -sS http://127.0.0.1:3000/v1/decisions \
@@ -256,269 +251,269 @@ curl -sS http://127.0.0.1:3000/v1/decisions \
     "horizon": 5,
     "execution": "next_session_open",
     "costPercent": 0.3,
-    "instructions": "综合趋势、基本面和新闻，证据不足时观望。"
+    "instructions": "Consider trends, fundamentals, and news. Hold when evidence is insufficient."
   }'
 ```
 
-省略 `mode` 时默认 `live`。也可以使用：
+Omitting `mode` defaults to `live`. Alternatively:
 
 ```sh
 python3 examples/http_client.py --symbol 600519 --position flat
 ```
 
-代码格式示例包括 `600519`、`AAPL`、`HK00700`，实际数据可用性取决于 AIStock 数据源。`position` 是调用方提供的状态，不代表服务读取过真实账户。
+Example symbol formats include `600519`, `AAPL`, and `HK00700`. Actual coverage depends on AIStock's data sources. `position` is supplied by the caller; the service does not read your brokerage account.
 
 <a id="api"></a>
-## HTTP API：如何接入自己的程序
+## HTTP API integration
 
-### 接口一览
+### Endpoints
 
-| 方法 | 路径 | 返回内容 |
+| Method | Path | Returns |
 | --- | --- | --- |
-| GET | `/v1/health` | 服务存活、配置检查、就绪状态及当前任务 |
-| POST | `/v1/decisions` | 提交分析；返回任务或已完成的决策 |
-| GET | `/v1/decisions/{request_id}` | 任务进度及最终决策 |
-| GET | `/v1/decisions/{request_id}/evidence` | 上下文、模型请求、原始响应与审计信号 |
+| GET | `/v1/health` | Liveness, configuration checks, readiness, and active task |
+| POST | `/v1/decisions` | A new task or a completed decision |
+| GET | `/v1/decisions/{request_id}` | Progress and final decision |
+| GET | `/v1/decisions/{request_id}/evidence` | Context, model request, raw response, and audit signal |
 
-### 请求参数
+### Request fields
 
-| 字段 | 必填 | 默认值 / 可选值 |
+| Field | Required | Default / values |
 | --- | --- | --- |
-| `symbol` | 真实模式必填 | 股票代码；演示模式使用 `DEMO` |
-| `position` | 是 | `flat` 空仓 / `long` 已持有 |
-| `backend` | 否 | 本次后端：`jev` / `local`；省略沿用服务默认 |
-| `mode` | 否 | `live` / `demo`，默认 `live` |
-| `horizon` | 否 | 1–250 个交易日，默认 `5` |
-| `execution` | 否 | `next_session_open` / `immediate`，默认前者 |
-| `costPercent` | 否 | 往返成本与滑点假设，范围 0–10，默认 `0.3`（即 0.3%） |
-| `instructions` | 否 | 最多 8000 字符的策略说明 |
-| `waitSeconds` | 否 | 0–25 秒，默认 `25`；`0` 立即返回任务 |
+| `symbol` | In live mode | Stock symbol; demo uses `DEMO` |
+| `position` | Yes | `flat`: no holding / `long`: already holding |
+| `backend` | No | Per-request `jev` / `local`; omit to use the service default |
+| `mode` | No | `live` / `demo`; defaults to `live` |
+| `horizon` | No | 1–250 trading days; default `5` |
+| `execution` | No | `next_session_open` / `immediate`; defaults to the former |
+| `costPercent` | No | Round-trip cost and slippage assumption, 0–10; default `0.3` (0.3%) |
+| `instructions` | No | Strategy instructions, up to 8,000 characters |
+| `waitSeconds` | No | 0–25 seconds; default `25`; `0` returns a task immediately |
 
-未知字段会被拒绝。分析周期、成本和执行时点都是模型判断的假设，不会触发真实交易。
+Unknown fields are rejected. Horizon, costs, and execution timing are evaluation assumptions, not instructions to execute a trade.
 
-### 一次提交，按需查询
+### Submit once, query as needed
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant C as 你的程序
-    participant S as 本地 HTTP 服务
-    participant W as 采集与决策流水线
-    C->>S: POST /v1/decisions + 幂等标识
-    S->>W: 启动单股分析
-    alt 在等待期内结束
-        W-->>S: 结果或失败记录
+    participant C as Your application
+    participant S as Local HTTP service
+    participant W as Collection and decision pipeline
+    C->>S: POST /v1/decisions + idempotency key
+    S->>W: Start stock analysis
+    alt Completed within wait period
+        W-->>S: Result or failure record
         S-->>C: 200 + state + decision
-    else 超过等待期
+    else Wait period exceeded
         S-->>C: 202 + request_id + Location
-        loop 按 Retry-After 查询
+        loop Poll according to Retry-After
             C->>S: GET /v1/decisions/{id}
-            S-->>C: 当前状态；完成后附带 decision
+            S-->>C: Current state, decision when complete
         end
     end
 ```
 
-**重试规则：** 为每次新分析生成一个 `Idempotency-Key`（8–100 位字母、数字或连字符）。网络重试使用原标识和相同分析参数，可更改等待时间；不同分析参数复用标识会返回 409。省略标识时服务会自动生成，但网络异常后调用方难以安全重试。
+**Retries:** Generate an `Idempotency-Key` for each new analysis: 8–100 letters, digits, or hyphens. For network retries, reuse the key and analysis parameters; the wait duration may change. Reusing a key with different analysis parameters returns 409. A key is generated if omitted, but a client cannot reliably retry after a lost response without knowing it.
 
-**等待规则：** 202 响应附带 `Location` 和 `Retry-After: 2`。等待结束或客户端断开不会取消任务。GET 查询不会重新调用模型。服务当前一次处理一个任务，不排队；忙碌时返回 `409 BUSY`。
+**Waiting:** A 202 includes `Location` and `Retry-After: 2`. Ending the wait or disconnecting does not cancel the task. GET does not call the model again. The service runs one task at a time without a queue; additional work receives `409 BUSY`.
 
-### 正确读取结果
+### Interpret results correctly
 
 ```text
-HTTP 成功
-  └─ state 是否为 done？
-       ├─ 进行中 → 继续查询
-       ├─ failed → 读取 error，处理失败
-       └─ done → 检查 decision.status、valid_until、mode
-                    └─ 再读取 decision.final_action
+HTTP success
+  └─ Check state
+       ├─ In progress → keep polling
+       ├─ failed → read error and handle the failure
+       └─ done → check decision.status, valid_until, and mode
+                    └─ then read decision.final_action
 ```
 
-| 字段 | 如何理解 |
+| Field | Meaning |
 | --- | --- |
-| `state` | 任务状态；`done` 只说明处理结束 |
-| `decision.status` | `accepted`、`blocked`、`skipped`、`error` 或 `expired` |
-| `model_action` | 模型原始动作；未获得有效模型判断时可能为 null |
-| `final_action` | 程序校验后的动作；被阻止或过期时为 `hold` |
-| `reason_codes` / `warnings` | 动作限制、数据质量与其他提示 |
-| `valid_until` | 信号有效期；过期查询返回 `hold / expired` 视图 |
-| `action_probabilities` | 模型对动作类别的概率分配，**不是盈利胜率** |
-| `model_source` | `jev` 在线路径 / `recorded` 演示或录制响应路径 ; `local` |
+| `state` | Task state; `done` only means processing finished |
+| `decision.status` | `accepted`, `blocked`, `skipped`, `error`, or `expired` |
+| `model_action` | Original model action; may be null without a valid model judgment |
+| `final_action` | Policy-checked action; `hold` when blocked or expired |
+| `reason_codes` / `warnings` | Action restrictions, data quality, and other notices |
+| `valid_until` | Signal expiry; expired queries return a `hold / expired` view |
+| `action_probabilities` | Probability distribution over action classes, **not the chance of making a profit** |
+| `model_source` | `jev`: online path / `recorded`: demo or recorded-response path ; `local` |
 
-`buy` 表示增加多头敞口，`sell` 表示减少已有多头持仓，`hold` 表示保持现状；空仓时的 `sell` 不会被解释为做空。
+`buy` increases long exposure, `sell` reduces an existing long holding, and `hold` leaves it unchanged. Selling from a flat position is not interpreted as opening a short.
 
-更多响应约定、错误码和恢复方式见 [完整 HTTP API 文档](docs/http-api.md)。
+See the [HTTP API reference](docs/http-api.md) for more response, error, and recovery details (Simplified Chinese).
 
 <a id="architecture"></a>
-## 工作原理
+## Architecture
 
 ```mermaid
 flowchart TD
-    Client["你的脚本 / 应用"] -->|"HTTP · localhost"| API
-    UI["可选网页界面"] --> API
-    subgraph Local["用户本机"]
-        API["Bun HTTP 服务<br/>参数校验 · 幂等 · 任务状态"]
-        Collect["AIStock / Python<br/>多源采集 · 确定性指标"]
-        Pre["输入预检查<br/>整理分类问题与上下文"]
+    Client["Your script / application"] -->|"HTTP · localhost"| API
+    UI["Optional web UI"] --> API
+    subgraph Local["Your computer"]
+        API["Bun HTTP service<br/>Validation · Idempotency · Task state"]
+        Collect["AIStock / Python<br/>Data collection · Deterministic indicators"]
+        Pre["Input checks<br/>Build questions and context"]
         SDK["TypeSafe SDK / Local HTTP<br/>buy / sell / hold"]
         LocalEngine["Local Decision Engine"]
         SDK <-->|"Local inference"| LocalEngine
-        Policy["Python 决策护栏<br/>校验响应 · 限制动作"]
-        DB[("SQLite<br/>任务 · 快照 · 原始响应")]
-        Result["结构化 DecisionSignal"]
+        Policy["Python decision policy<br/>Validate response · Restrict actions"]
+        DB[("SQLite<br/>Tasks · Snapshots · Raw responses")]
+        Result["Structured DecisionSignal"]
         API --> Collect --> Pre
-        Pre -->|"输入可用"| SDK
-        Pre -->|"输入受限：记录原因"| Policy
+        Pre -->|"Usable input"| SDK
+        Pre -->|"Restricted input: record reasons"| Policy
         SDK --> Policy --> DB
         Policy --> Result
     end
-    Sources["外部行情 / 新闻 / 基本面数据源"] --> Collect
-    SDK <-->|"在线推理"| Jev["Jev API"]
-    Result -->|"返回 / 查询"| Client
+    Sources["External market / news / fundamental data"] --> Collect
+    SDK <-->|"Online inference"| Jev["Jev API"]
+    Result -->|"Return / query"| Client
 ```
 
-### 各层职责
+### Responsibilities
 
-| 层 | 负责的事情 | 主要代码 |
+| Layer | Responsibility | Main code |
 | --- | --- | --- |
-| 服务入口 | 接收 HTTP、复用任务、等待或返回查询地址 | [server.ts](app/server.ts)、[api.ts](app/api.ts) |
-| 数据层 | 调用 AIStock 的 context-only 流程，保留数据覆盖和来源 | [collector.py](src/jev_trading/collector.py)、[aistock_worker.py](src/jev_trading/aistock_worker.py) |
-| 模型层 | `createTypeSafeAi → evaluationModel → experimental_evaluate` | [model.ts](app/model.ts) |
-| 决策层 | 校验概率、数据日期和动作，保留模型与最终结果的差异 | [policy.py](src/jev_trading/policy.py)、[service.py](src/jev_trading/service.py) |
-| 审计层 | 保存输入、问题版本、模型响应和最终信号 | [storage.py](src/jev_trading/storage.py)、[jobs.ts](app/jobs.ts) |
+| Service | HTTP, task reuse, bounded waiting, query URLs | [server.ts](app/server.ts), [api.ts](app/api.ts) |
+| Data | AIStock context-only collection, coverage and provenance | [collector.py](src/jev_trading/collector.py), [aistock_worker.py](src/jev_trading/aistock_worker.py) |
+| Model | `createTypeSafeAi → evaluationModel → experimental_evaluate` | [model.ts](app/model.ts) |
+| Decision | Probabilities, dates, actions, and model/final differences | [policy.py](src/jev_trading/policy.py), [service.py](src/jev_trading/service.py) |
+| Audit | Inputs, question versions, model responses, and final signals | [storage.py](src/jev_trading/storage.py), [jobs.ts](app/jobs.ts) |
 
-云端模型调用使用 Bun SDK，本地后端使用兼容 HTTP；Python 负责采集、合同校验与审计。高级 Python CLI 保留独立的 HTTP 模型适配，不要求调用方自己编排这两个运行时。
+Cloud inference uses the Bun SDK; local backends use compatible HTTP. Python handles collection, data contracts, and audit. The advanced Python CLI retains its own HTTP model adapter; API callers do not have to coordinate the two runtimes.
 
-### 护栏与失败处理
+### Checks and failure handling
 
-- 核心日线或技术数据不可用、数据日期不一致、上下文过期时，记录限制原因。
-- 即时执行假设要求开市且实时报价足够新；下一开盘假设仍只用于决策评估。
-- 空仓禁止卖出，保守市场环境或核心技术数据降级可阻止买入。
-- 模型响应必须满足动作与概率合同；超时、错误或迟到结果不能作为有效新增风险信号。
-- 模型调用不自动重试；服务重启将未完成任务标为失败，需调用方显式发起新分析。
+- Record restrictions for unavailable core bars/technicals, mismatched dates, or expired context.
+- Immediate-execution assumptions require an open market and sufficiently fresh quotes. Next-open assumptions are still for evaluation only.
+- Block selling from a flat position. Conservative market conditions or degraded core technical data can block buying.
+- Validate the model's action and probability contract. Errors, timeouts, and late results cannot become valid signals to add exposure.
+- Do not retry the model automatically. Restarted services mark unfinished tasks as failed; callers must explicitly request new analysis.
 
-这些是当前已实现的基础护栏，不等于 AIStock 原报告护栏的全量迁移，也未校验真实账户资金、可卖数量或完整交易规则。
+These are basic implemented checks, not a complete migration of AIStock's report policies. They do not validate actual cash, sellable quantity, or all trading rules.
 
 <a id="preview"></a>
-## 可选网页工作台
+## Optional web workbench
 
-服务启动后，打开 [http://127.0.0.1:3000](http://127.0.0.1:3000) 即可使用同一套分析能力。
+After startup, open [http://127.0.0.1:3000](http://127.0.0.1:3000) to use the same analysis service.
 
-![桌面工作台：左侧分析参数，右侧决策、概率和数据状态，下方历史记录](docs/assets/workbench-desktop.png)
+![Desktop workbench: parameters, decision, probabilities, data quality, and history](docs/assets/workbench-desktop.png)
 
-*截图为合成演示样本，展示的是固定响应，不是实盘表现或在线 Jev 判断。*
+*The UI and screenshots currently use Simplified Chinese. This is a synthetic demo with a fixed response, not live trading performance or a live Jev judgment.*
 
 <details>
-<summary><strong>查看手机宽度布局</strong></summary>
+<summary><strong>View the narrow-screen layout</strong></summary>
 
 <p align="center">
-  <img src="docs/assets/workbench-mobile.png" width="360" alt="手机宽度下的分析表单、决策结果和历史记录">
+  <img src="docs/assets/workbench-mobile.png" width="360" alt="Narrow-screen analysis form, decision result, and history">
 </p>
 
-手机宽度适配仅指界面布局；服务仍默认只允许本机访问，不代表已开放手机远程访问。
+Responsive layout does not enable remote phone access. The service still listens on the local loopback address only.
 
 </details>
 
-网页支持连接设置、演示与真实模式切换、阶段进度、历史查看和依据导出。Mac 用户也可双击 [start.command](start.command)：已有 Node.js/npm 而未安装 Bun 时，启动器会尝试通过 npx 准备 Bun；仍需预先安装 uv。
+The UI includes connection settings, demo/live selection, progress, history, and evidence export. On macOS, double-click [start.command](start.command). If Node.js/npm is installed but Bun is not, it attempts to obtain Bun through npx. uv remains a prerequisite.
 
 <a id="configuration"></a>
-## 配置与数据存储
+## Configuration and storage
 
-| 配置 | 默认 / 说明 |
+| Setting | Default / description |
 | --- | --- |
-| `TYPESAFE_AI_API_KEY` | Jev 密钥，仅云端后端必需；兼容 `TYPESAFE_API_KEY` |
-| `JEV_MODEL_ID` | 默认 `jev-latest`；兼容 `JEV_MODEL` |
+| `TYPESAFE_AI_API_KEY` | Required for the cloud backend only; also accepts `TYPESAFE_API_KEY` |
+| `JEV_MODEL_ID` | `jev-latest`; also accepts `JEV_MODEL` |
 | `JEV_BACKEND` / `JEV_LOCAL_BASE_URL` | `jev` / `local` · [Local inference](docs/local-inference.md) |
-| `AISTOCK_PATH` | 自动发现，或指定 AIStock 项目路径 |
-| `AISTOCK_PYTHON` | 默认使用 AIStock 的 `.venv/bin/python` |
-| `PORT` | 默认 `3000`；监听地址固定为 `127.0.0.1` |
-| `JEV_DATA_DIR` | 默认项目 `data/`；用于隔离不同运行实例的数据 |
-| `OPEN_BROWSER` | `0` 禁止自动打开浏览器；`bun run serve` 已自动设置 |
+| `AISTOCK_PATH` | Auto-discovered or explicitly configured AIStock path |
+| `AISTOCK_PYTHON` | Defaults to AIStock's `.venv/bin/python` |
+| `PORT` | `3000`; bind address is fixed to `127.0.0.1` |
+| `JEV_DATA_DIR` | Project `data/`; use separate directories for separate instances |
+| `OPEN_BROWSER` | `0` disables browser launch; already set by `bun run serve` |
 
-Bun 自动加载 `.env`。网页保存的配置优先于环境变量；改动 `.env` 后重启生效。网页中提交空密钥表示保留原值。
+Bun loads `.env` automatically. Saved web settings take precedence over environment variables. Restart after changing `.env`. An empty key submitted in the UI preserves the existing key.
 
 ```text
 data/
-├── settings.json          # 本机连接配置，文件权限 0600
-├── workbench.sqlite       # 任务及网页历史
-├── decisions.db           # 输入、请求、响应和决策审计
-├── aistock.db             # 独立的行情缓存
-├── contexts/              # 真实分析的上下文快照
-└── collection.log         # 采集诊断日志
+├── settings.json          # Local connection settings, mode 0600
+├── workbench.sqlite       # Tasks and web history
+├── decisions.db           # Inputs, requests, responses, and signal audit
+├── aistock.db             # Separate market-data cache
+├── contexts/              # Live-analysis input snapshots
+└── collection.log         # Collection diagnostics
 ```
 
-API 不返回密钥，密钥不写入分析记录。`data/` 与 `.env` 已被 Git 忽略。决策查询会检查有效期，依据导出保留原始信号，以便审计。
+The API does not return keys, and keys are not written to analysis records. Git ignores `data/` and `.env`. Decision queries check expiry; evidence export preserves the original signal.
 
 <a id="faq"></a>
-## 常见问题
+## FAQ
 
-| 遇到的问题 | 原因 / 处理方式 |
+| Question / symptom | Explanation / action |
 | --- | --- |
-| 没有密钥，能先试吗？ | 可以。请求显式使用 `mode: demo`，无需 AIStock 或 Jev 密钥 |
-| 返回 202，没有决策 | 任务尚未完成；按 `links.self` 查询，或使用 Python 客户端自动轮询 |
-| `503 NOT_READY` | 运行 `bun run doctor` 或查询 `/v1/health`，补齐环境和连接配置 |
-| `409 BUSY` | 当前已有任务；稍后使用原幂等标识重试 |
-| `409 IDEMPOTENCY_CONFLICT` | 同一标识对应不同分析参数；新分析应使用新标识 |
-| 想重新分析，但总返回旧结果 | 复用了幂等标识；为新的分析生成新标识 |
-| 返回 400 | 检查 JSON、必填 position、字段拼写及参数范围 |
-| Jev 返回 401 或模型调用失败 | 检查服务端密钥、模型权限和网络，更新后显式重试 |
-| 数据采集慢或失败 | 查看 `data/collection.log`，检查 AIStock 的依赖和数据源；网页/HTTP 采集上限为 240 秒 |
-| 模型建议 buy，最终却是 hold | 检查 reason_codes；程序护栏可能阻止了买入 |
-| health 的 ready 为 true，仍分析失败 | 就绪检查不验证所有依赖导入、数据源连通性或密钥权限 |
-| 端口已占用 | 使用 `PORT=3010 bun run serve`，客户端同步修改地址 |
-| 能放到公网或自动交易吗？ | 当前仅提供本机服务，没有多用户认证、实盘下单或完整执行风控 |
+| Can I try it without a key? | Set `mode: demo`; neither AIStock nor a Jev key is needed |
+| 202 with no decision | Poll `links.self`, or use the Python client |
+| `503 NOT_READY` | Run `bun run doctor` or query `/v1/health` and complete configuration |
+| `409 BUSY` | Another task is running; retry later with the same idempotency key |
+| `409 IDEMPOTENCY_CONFLICT` | Same key, different parameters; use a new key for new analysis |
+| Repeated calls return an old result | You reused a key; generate a new one for new analysis |
+| HTTP 400 | Check JSON, required position, field spelling, and parameter ranges |
+| Jev 401 or model failure | Check the server key, model access, and network, then explicitly retry |
+| Slow or failed collection | Inspect `data/collection.log`, AIStock dependencies, and data sources; HTTP/UI collection limit is 240 seconds |
+| Model says buy, final action is hold | Inspect reason_codes; policy may have blocked buying |
+| ready is true but analysis fails | Readiness does not test every import, data connection, or API permission |
+| Port already in use | Use `PORT=3010 bun run serve` and update your client URL |
+| Public hosting or automated orders? | Local service only; no multi-user authentication, live orders, or complete execution risk checks |
 
-## 开发与验证
+## Development and validation
 
 ```sh
-bun run typecheck       # TypeScript 严格类型检查
-bun test app            # SDK、任务持久化、HTTP 集成等测试
-uv run pytest -q        # Python 合同、护栏、超时、存储与 CLI 测试
+bun run typecheck       # Strict TypeScript checks
+bun test app            # SDK, persistence, and HTTP integration
+uv run pytest -q        # Python contracts, policy, timeout, storage, and CLI
 ```
 
-| 验证项 | 当前记录 |
+| Validation | Recorded result |
 | --- | --- |
-| TypeScript 类型检查 | 通过 |
-| Bun 测试 | 18 项通过，包括独立进程的本地 HTTP 集成 |
-| Python 测试 | 38 项通过 |
-| HTTP 演示 | 提交、轮询、幂等、结果、导出及 Python 客户端已跑通 |
-| 浏览器 | 桌面及手机宽度的演示、设置、历史和布局已检查 |
-| AIStock 真实数据采集 | 曾完成 600519 采集，覆盖和局限见实现记录 |
-| Jev 真实在线推理 | 尚未验证；SDK 请求合同以模拟 HTTP 响应测试 |
+| TypeScript | Passed |
+| Bun | 18 tests passed, including HTTP integration in a separate process |
+| Python | 38 tests passed |
+| HTTP demo | Submission, polling, idempotency, results, export, and Python client verified |
+| Browser | Desktop and narrow-screen demo, settings, history, and layout checked |
+| Real AIStock collection | Collected 600519; see implementation notes for coverage and limits |
+| Live Jev inference | Not yet verified; SDK contracts tested with mocked HTTP responses |
 
-测试通过不代表已验证策略收益。当前没有收益回测、自动止损、目标仓位计算或真实交易执行；历史数据回放也不保证 point-in-time 完整性。
+Passing tests does not establish profitability. There is no return backtest, automatic stop-loss, target-position sizing, or real execution. Historical replay does not guarantee point-in-time completeness.
 
 <details>
-<summary><strong>项目目录</strong></summary>
+<summary><strong>Repository structure</strong></summary>
 
 ```text
 jev-trading/
-├── app/                   # Bun HTTP 服务、Jev SDK、任务与测试
-├── web/                   # 可选网页界面
-├── src/jev_trading/        # Python 采集、合同、护栏、审计和 CLI
-├── tests/                 # Python 测试
-├── examples/              # HTTP 客户端、离线输入与配置示例
-├── patches/               # AIStock context-only 补丁及许可
-├── docs/                  # API、架构、实现记录和截图
-├── reference/             # jev-trader 参考源码
-├── .env.example           # 服务端配置示例
-├── start.command          # macOS 启动入口
+├── app/                   # Bun HTTP service, Jev SDK, tasks, and tests
+├── web/                   # Optional web interface
+├── src/jev_trading/        # Python collection, contracts, policy, audit, and CLI
+├── tests/                 # Python tests
+├── examples/              # HTTP client, offline inputs, and sample configuration
+├── patches/               # AIStock context-only patch and license
+├── docs/                  # API, architecture, implementation notes, and screenshots
+├── reference/             # jev-trader reference submodule
+├── .env.example           # Server configuration example
+├── start.command          # macOS launcher
 ├── package.json / bun.lock
 └── pyproject.toml / uv.lock
 ```
 
 </details>
 
-## 文档与参考
+## Documentation and attribution
 
-本 README 提供五种语言版本，可通过页首切换。当前网页、日志及扩展文档主要为简体中文；README 的多语言支持不代表应用界面已完成国际化。
+This README is available in five languages using the links at the top. The application UI, logs, and extended documentation are currently primarily in Simplified Chinese; translated READMEs do not imply a localized application.
 
-| 文档 | 内容 |
+| Document | Content |
 | --- | --- |
-| [HTTP API](docs/http-api.md) | 本地部署、请求约定、查询和恢复 |
-| [Python HTTP 客户端](examples/http_client.py) | 可直接运行的提交与轮询示例 |
-| [高级 CLI](docs/cli.md) | 数据采集、离线响应重放和审计查询 |
-| [架构与开发方案](docs/architecture-and-development-plan.md) | 需求边界及分层设计 |
-| [网页与 SDK 实现记录](docs/workbench.md) | 接入细节、运行方式与验证 |
-| [首版实现记录](docs/implementation.md) | AIStock 补丁、真实采集及已知局限 |
+| [HTTP API](docs/http-api.md) | Deployment, requests, polling, and recovery |
+| [Python HTTP client](examples/http_client.py) | Runnable submission and polling example |
+| [Advanced CLI](docs/cli.md) | Collection, recorded-response replay, and audit queries |
+| [Architecture and development plan](docs/architecture-and-development-plan.md) | Scope and layers |
+| [Web and SDK notes](docs/workbench.md) | Integration and validation |
+| [Initial implementation notes](docs/implementation.md) | AIStock patch, real collection, and known limits |
 
-本项目参考 AIStock 的单股分析流程，以及 jev-trader 的 Jev SDK 接入方式。参考源码以固定版本的 Git 子模块保留在 [reference/](reference/)，包含其 MIT 许可；已有 checkout 可执行 `git submodule update --init --recursive` 获取。AIStock 配套修改的许可副本见 [patches/AIStock-LICENSE](patches/AIStock-LICENSE)。这些上游许可说明不代表本项目新增代码已另行声明统一开源许可证。
+The project draws on AIStock's stock-analysis workflow and jev-trader's Jev SDK integration. [reference/](reference/) is a pinned Git submodule containing upstream source and its MIT license. Run `git submodule update --init --recursive` in an existing checkout to retrieve it. The AIStock license copy is in [patches/AIStock-LICENSE](patches/AIStock-LICENSE). These upstream licenses do not constitute a separate, unified license declaration for this project's new code.

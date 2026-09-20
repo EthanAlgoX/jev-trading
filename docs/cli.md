@@ -1,6 +1,6 @@
 # Jev Trading
 
-复用 AIStock 的多源单股分析，将末端的报告生成替换为 Jev `buy / sell / hold` 分类。本文为高级命令行接口说明。日常使用请从 [网页工作台](../README.md) 开始，所有入口均只输出信号。
+复用 AIStock 的多源单股分析，将末端的报告生成替换为 Jev `buy / sell / hold` 分类。本文为高级命令行接口说明。日常使用请从 [网页工作台](../README.zh-CN.md) 开始，所有入口均只输出信号。
 
 ```text
 股票代码 → AIStock 行情 / 基本面 / 新闻 / 筹码 / 技术指标

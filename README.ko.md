@@ -2,7 +2,7 @@
 
 # Jev Trading
 
-[简体中文](README.md) · [English](README.en.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 ### 판단에 집중하고, 빠르게 연결하고, 비용을 직접 관리하세요.
 
