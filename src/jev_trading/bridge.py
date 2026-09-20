@@ -5,7 +5,7 @@ import sys
 from datetime import timedelta
 from pathlib import Path
 
-from .contracts import ContextSnapshot, DecisionConfig, utcnow
+from .contracts import ContextSnapshot, DecisionConfig, InferenceMetadata, digest, utcnow
 from .model import ModelFailure, build_request
 from .policy import precheck
 from .service import decide
@@ -15,9 +15,12 @@ from .storage import DecisionStore
 class SuppliedClassifier:
     def __init__(self, payload):
         self.payload = payload
-        self.source = "recorded" if payload.get("demo") else "jev"
+        self.inference = InferenceMetadata.model_validate(
+            {"backend": "recorded", "probability_method": "recorded"} if payload.get("demo")
+            else payload.get("inference") or {"backend": "jev", "probability_method": "provider_reported"})
+        self.source = self.inference.backend
         self.model = payload["model"]
-        self.cache_identity = self.model
+        self.cache_identity = digest({"model": self.model, "inference": self.inference.model_dump()})
         self.external_latency_ms = payload.get("latency_ms")
 
     async def classify(self, request, timeout):

@@ -107,3 +107,9 @@ uv run python -m compileall -q src tests examples
 当前没有订单执行、自动止损、仓位计算、收益回测。历史输入不保证 point-in-time 完整性，不能把历史重放当作无未来信息的回测。真实交易前需要独立执行规则、账户检查与效果验证。
 
 实现细节及本次验证结果见 [开发记录](implementation.md)。
+
+## 本地模型
+
+CLI 可使用 `--backend local`，用 `--local-engine generated` 或 `--local-engine logprobs` 选择概率计算方式、`--local-base-url http://127.0.0.1:8080`，也可显式导出 `JEV_BACKEND`、`JEV_LOCAL_BASE_URL`、`JEV_LOCAL_MODEL` 和可选的 `JEV_LOCAL_API_KEY`。本地推理不使用云端密钥。`--model` 优先于当前后端的模型环境变量。
+
+调用方还可配置 `JEV_LOCAL_MODEL_ID`、`JEV_LOCAL_MODEL_REVISION` 用于审计区分。超时仍由决策配置中的 `request_timeout_seconds` 控制；CLI 不读取网页设置。完整部署与概率来源说明见 [本地推理指南](local-inference.md)。

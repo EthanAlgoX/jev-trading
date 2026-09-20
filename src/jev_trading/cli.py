@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .collector import collect
 from .contracts import ContextSnapshot, DecisionConfig
-from .model import JevClassifier, RecordedClassifier
+from .model import JevClassifier, LocalClassifier, RecordedClassifier
 from .service import decide
 from .storage import BusyRun, DecisionStore
 
@@ -39,7 +39,10 @@ def main() -> int:
     source.add_argument("--symbol")
     decision.add_argument("--config", type=Path, required=True)
     decision.add_argument("--recorded-response", type=Path, help="离线响应重放，输出明确标记 recorded")
-    decision.add_argument("--model", default=os.getenv("JEV_MODEL_ID") or os.getenv("JEV_MODEL", "jev-latest"))
+    decision.add_argument("--model", help="模型名称；未指定时使用当前后端环境配置")
+    decision.add_argument("--backend", choices=["jev", "local"], default={"localjev": "local", "openjev_sglang": "local"}.get(os.getenv("JEV_BACKEND", "jev"), os.getenv("JEV_BACKEND", "jev")))
+    decision.add_argument("--local-engine", choices=["generated", "logprobs"], default=os.getenv("JEV_LOCAL_ENGINE") or ("generated" if os.getenv("JEV_BACKEND") == "localjev" else "logprobs"))
+    decision.add_argument("--local-base-url", default=os.getenv("JEV_LOCAL_BASE_URL"))
     decision.add_argument("--db", type=Path, default=Path("data/decisions.db"))
     decision.add_argument("--retry-token", default="", help="显式创建新的尝试，保留旧记录")
     add_collection_options(decision)
@@ -64,9 +67,14 @@ def main() -> int:
         config = DecisionConfig.model_validate_json(args.config.read_text(encoding="utf-8"))
         if args.recorded_response:
             classifier = RecordedClassifier(json.loads(args.recorded_response.read_text(encoding="utf-8")))
+        elif args.backend == "local":
+            classifier = LocalClassifier(args.local_engine,
+                args.local_base_url or ("http://127.0.0.1:8080" if args.local_engine == "generated" else "http://127.0.0.1:8000"),
+                args.model or os.getenv("JEV_LOCAL_MODEL", "jev-latest"), os.getenv("JEV_LOCAL_API_KEY", ""),
+                os.getenv("JEV_LOCAL_MODEL_ID"), os.getenv("JEV_LOCAL_MODEL_REVISION"))
         else:
             # Fail on missing credentials before spending time collecting market data.
-            classifier = JevClassifier(os.getenv("TYPESAFE_AI_API_KEY") or os.getenv("TYPESAFE_API_KEY", ""), args.model)
+            classifier = JevClassifier(os.getenv("TYPESAFE_AI_API_KEY") or os.getenv("TYPESAFE_API_KEY", ""), args.model or os.getenv("JEV_MODEL_ID") or os.getenv("JEV_MODEL", "jev-latest"))
         context = load_context(args)
         store = DecisionStore(args.db)
         try:

@@ -8,12 +8,16 @@
 <section id="settings-panel" class="settings" hidden aria-labelledby="settings-title">
 <div class="section-heading"><div><h2 id="settings-title">连接数据与模型</h2><p>配置一次，之后只需输入股票代码。</p></div><button id="close-settings" class="text-button" aria-label="关闭连接设置">收起 ↑</button></div>
 <ul id="checks" class="checks" aria-label="环境检查"></ul>
-<form id="settings-form"><div class="settings-grid"><label>Jev API Key <input id="api-key" type="password" autocomplete="off" placeholder="填写密钥；已配置时留空保持不变"><span class="help">密钥仅保存到本机，不会显示在分析记录中。<a href="https://console.typesafe.ai" target="_blank" rel="noreferrer">获取密钥 ↗</a></span></label><label>模型<input id="model" placeholder="jev-latest" required><span class="help">与原 jev-trader 相同的 TypeSafe SDK 接入。</span></label></div>
+<form id="settings-form">
+<div class="settings-grid"><label>推理后端<select id="backend"><option value="jev">Jev 云端 API</option><option value="local">本地决策引擎</option></select></label><label>模型超时（秒）<input id="model-timeout" type="number" min="1" max="300" value="30" required></label></div>
+<p id="backend-help" class="help"></p>
+<div id="cloud-settings" class="settings-grid"><label>Jev API Key <input id="api-key" type="password" autocomplete="off" placeholder="填写密钥；已配置时留空保持不变"><span class="help">密钥仅保存到本机，不会显示在分析记录中。<a href="https://console.typesafe.ai" target="_blank" rel="noreferrer">获取密钥 ↗</a></span></label><label>模型<input id="model" placeholder="jev-latest" required><span class="help">与原 jev-trader 相同的 TypeSafe SDK 接入。</span></label></div>
+<div id="local-settings" hidden><label>概率计算方式<select id="local-engine"><option value="logprobs">标签 Logprobs（读取模型分数）</option><option value="generated">生成概率（模型输出 JSON）</option></select></label><div class="settings-grid"><label>本地服务地址<input id="local-url" placeholder="http://127.0.0.1:8080" spellcheck="false"><span class="help">填写 Jev 兼容服务地址，不是底层聊天模型端口。</span></label><label>本地请求模型<input id="local-model" value="jev-latest"></label><label>本地服务密钥（可选）<input id="local-key" type="password" autocomplete="off" placeholder="未启用本地鉴权时留空"></label><label>部署的模型名称（可选）<input id="local-model-id" placeholder="用于记录实际权重名称"></label><label>权重版本 / revision（可选）<input id="local-revision" placeholder="用于区分本地模型版本"></label></div></div>
 <details><summary>数据源路径（通常自动识别）</summary><div class="settings-grid"><label>AIStock 项目目录<input id="aistock-path" spellcheck="false"></label><label>AIStock Python 路径<input id="aistock-python" spellcheck="false"></label></div></details>
 <div class="settings-bottom"><button class="primary small" type="submit" id="save-settings">保存并检查</button><p id="settings-feedback" role="status"></p></div></form>
 </section>
 <main>
-<div class="intro"><div><p class="overline">单股分析工作台</p><h1>把分析，变成清晰的决策。</h1><p class="intro-copy">汇集行情、指标与市场信息，由 Jev 判断买入、卖出或观望。</p></div><span class="signal-badge">仅生成信号</span></div>
+<div class="intro"><div><p class="overline">单股分析工作台</p><h1>把分析，变成清晰的决策。</h1><p class="intro-copy">汇集行情、指标与市场信息，由云端或本地模型判断买入、卖出或观望。</p></div><span class="signal-badge">仅生成信号</span></div>
 <div id="connection-error" class="notice error" role="status" hidden>连接暂时中断，正在重连。已提交的分析不会重复执行。</div>
 <div id="global-error" class="notice error" role="alert" hidden></div>
 <div class="analysis-layout">
@@ -25,7 +29,7 @@
 <label for="symbol">股票代码</label><input id="symbol" name="symbol" value="600519" placeholder="600519 / AAPL / HK00700" spellcheck="false" maxlength="20" autocomplete="off" disabled>
 <div class="form-row"><label>当前持仓<select id="position"><option value="flat">空仓，尚未持有</option><option value="long">已持有这只股票</option></select></label><label>分析周期<select id="horizon"><option value="5">未来 5 个交易日</option><option value="10">未来 10 个交易日</option><option value="20">未来 20 个交易日</option></select></label></div>
 <details class="analysis-options"><summary>调整分析假设</summary><label>计划执行方式<select id="execution"><option value="next_session_open">下一交易日开盘</option><option value="immediate">当前交易时段</option></select></label><label>往返成本与滑点假设（%）<input id="cost" type="number" min="0" max="10" step="0.01" value="0.30"></label><label>策略偏好（选填）<textarea id="instructions" rows="3" maxlength="8000" placeholder="例如：关注趋势回踩；证据不足时观望。"></textarea></label><p class="help">这些是判断假设，不会提交订单。</p></details>
-<div id="live-blocker" class="setup-prompt" hidden><strong>连接后即可分析真实股票</strong><p>完成数据源与 Jev 密钥设置，或先体验演示。</p><button id="open-setup" type="button" class="text-button">打开连接设置 →</button></div>
+<div id="live-blocker" class="setup-prompt" hidden><strong>连接后即可分析真实股票</strong><p>完成数据源与推理后端设置，或先体验演示。</p><button id="open-setup" type="button" class="text-button">打开连接设置 →</button></div>
 <button id="analyze" class="primary analyze" type="submit">体验一次决策 <span aria-hidden="true">→</span></button>
 <p class="submit-note" id="submit-note">演示使用合成数据与固定响应，不调用 Jev。</p>
 </form>
@@ -39,6 +43,7 @@
 <div class="decision-heading"><div><p class="result-symbol" id="result-symbol"></p><h3 id="action"></h3></div><span id="status-label" class="status-label"></span></div>
 <p id="decision-explanation" class="decision-explanation"></p>
 <div id="demo-disclosure" class="notice demo" hidden>演示结果：合成样本与固定响应，不是 Jev 的真实判断。</div>
+<p id="inference-origin" class="help"></p>
 <div id="reason-list" class="reason-list"></div>
 <div class="probabilities"><div class="subheading"><h4>模型分类概率</h4><span>不是盈利胜率</span></div><div id="probability-bars"></div></div>
 <div class="data-section"><div class="subheading"><h4>本次数据状态</h4><span id="data-subtitle"></span></div><dl id="quality" class="quality"></dl></div>

@@ -9,7 +9,8 @@
     "doctor": "bun run app/doctor.ts",
     "test": "bun test app",
     "typecheck": "tsc --noEmit",
-    "serve": "OPEN_BROWSER=0 bun run app/launch.ts"
+    "serve": "OPEN_BROWSER=0 bun run app/launch.ts",
+    "backend:check": "bun run app/backend-check.ts"
   },
   "dependencies": {
     "@ai-sdk/typesafe-ai": "3.0.0",

@@ -5,7 +5,7 @@ export class ApiError extends Error {
 }
 export function apiInput(body: any) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new ApiError("INVALID_INPUT", "请求必须是 JSON 对象。");
-  const allowed = ["symbol", "mode", "position", "horizon", "costPercent", "execution", "instructions", "waitSeconds"];
+  const allowed = ["symbol", "mode", "position", "horizon", "costPercent", "execution", "instructions", "waitSeconds", "backend", "localEngine"];
   if (Object.keys(body).some(k => !allowed.includes(k))) throw new ApiError("INVALID_INPUT", "存在未知参数，请参阅 docs/http-api.md。");
   const wait = body.waitSeconds ?? 25;
   if (!Number.isInteger(wait) || wait < 0 || wait > 25) throw new ApiError("INVALID_INPUT", "waitSeconds 应为 0 至 25 的整数。");
@@ -19,7 +19,7 @@ export function decisionResponse(job: Job) {
     decision.reason_codes = [...new Set([...decision.reason_codes, "DECISION_EXPIRED"])];
   }
   return { api_version: "1", request_id: job.id, state: job.state, mode: job.mode,
-    progress: job.progress, message: job.message, decision,
+    inference_backend: job.backend ?? job.result?.model_source ?? null, progress: job.progress, message: job.message, decision,
     error: job.state === "failed" ? { code: "ANALYSIS_FAILED", message: job.message } : null,
     links: { self: `/v1/decisions/${job.id}`, evidence: `/v1/decisions/${job.id}/evidence` } };
 }

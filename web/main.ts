@@ -24,9 +24,9 @@ const reasons: Record<string, string> = {
   MARKET_NOT_OPEN: "当前不是交易时段；可将执行假设改为下一交易日开盘。", LIVE_QUOTE_UNAVAILABLE: "即刻执行需要可用的实时行情。",
   UNKNOWN_QUOTE_TIME: "实时行情缺少可验证的时间，暂不生成即刻交易信号。", STALE_QUOTE: "实时行情已过期，请重新分析。",
   CONTEXT_EXPIRED: "分析数据已过期，请重新分析。", FUTURE_CONTEXT: "数据时间异常，请检查系统时钟和数据源。",
-  MODEL_TIMEOUT: "Jev 响应超时，请稍后重新分析。", MODEL_HTTP_401: "Jev 密钥未通过验证，请检查连接设置。",
-  MODEL_HTTP_403: "Jev 拒绝访问，请检查账户权限。", MODEL_HTTP_429: "Jev 请求额度或频率受限，请稍后重试。",
-  MODEL_REQUEST_FAILED: "Jev 请求未成功，请检查密钥、网络和模型名称。", INVALID_MODEL_RESPONSE: "模型未返回有效的三类动作概率，本次不采用该结果。",
+  MODEL_TIMEOUT: "模型后端响应超时，请稍后重新分析。", MODEL_HTTP_401: "后端密钥未通过验证，请检查连接设置。",
+  MODEL_HTTP_403: "模型后端拒绝访问，请检查账户权限。", MODEL_HTTP_429: "模型后端请求额度或频率受限，请稍后重试。",
+  MODEL_REQUEST_FAILED: "模型后端请求未成功，请检查服务地址、密钥和模型名称。", INVALID_MODEL_RESPONSE: "模型未返回有效的三类动作概率，本次不采用该结果。",
   LATE_MODEL_RESPONSE: "模型返回时信号已过期，本次不采用动作。", SIGNAL_EXPIRED: "该历史信号已过期，请重新分析。",
 };
 function reasonLabel(code: string) {
@@ -53,7 +53,7 @@ async function api(path: string, body?: unknown, token?: string) {
 function setSettings(open: boolean) {
   show("settings-panel", open);
   button("settings-toggle").setAttribute("aria-expanded", String(open));
-  if (open) { el("settings-panel").scrollIntoView({ block: "start", behavior: "auto" }); field("api-key").focus(); }
+  if (open) { el("settings-panel").scrollIntoView({ block: "start", behavior: "auto" }); field("backend").focus(); }
 }
 function refreshControls() {
   button("demo-mode").setAttribute("aria-pressed", String(mode === "demo"));
@@ -61,15 +61,61 @@ function refreshControls() {
   if (mode === "demo" && field("symbol").value !== "DEMO") { realSymbol = field("symbol").value; field("symbol").value = "DEMO"; }
   if (mode === "live" && field("symbol").value === "DEMO") field("symbol").value = realSymbol;
   field("symbol").disabled = mode === "demo" || busy();
-  text("mode-help", mode === "demo" ? "无需密钥，用合成样本体验完整决策流程。" : "使用 AIStock 实时采集的数据，由 Jev 进行分类判断。");
+  text("mode-help", mode === "demo" ? "无需密钥，用合成样本体验完整决策流程。" : "使用 AIStock 实时采集的数据，由所选后端进行分类判断。");
   text("submit-note", mode === "demo" ? "演示使用合成数据与固定响应，不调用 Jev。" : "仅生成决策信号，不会发出任何交易订单。");
   show("live-blocker", mode === "live" && !status?.ready);
   button("analyze").disabled = busy() || !(mode === "demo" ? status?.demoReady : status?.ready);
   button("analyze").innerHTML = busy() ? "分析正在进行…" : `${mode === "demo" ? "体验一次决策" : "开始分析"} <span aria-hidden="true">→</span>`;
   button("save-settings").disabled = busy();
 }
+function renderBackendSettings() {
+  const backend = field("backend").value;
+  show("checks", !status || backend === status.settings.backend);
+  show("cloud-settings", backend === "jev"); show("local-settings", backend !== "jev");
+  for (const id of ["api-key", "model"]) field(id).disabled = backend !== "jev";
+  for (const id of ["local-url", "local-model", "local-key", "local-model-id", "local-revision"]) field(id).disabled = backend === "jev";
+  field("local-url").required = field("local-model").required = backend !== "jev";
+  text("backend-help", backend === "jev" ? "使用 Jev 云端 API，需要云端密钥。修改后保存生效。"
+    : field("local-engine").value === "generated" ? "模型生成概率 JSON，再校验与归一化；并非直接读取 logits。失败不会自动转到云端。修改后保存生效。"
+    : "读取候选标签的 logprobs，再用 softmax 得到分类概率。先启动兼容的本地推理服务，修改后保存生效。");
+}
+field("backend").addEventListener("change", () => {
+  const backend = field("backend").value;
+  const profile = status?.profiles?.[backend];
+  if (profile?.localEngine) field("local-engine").value = profile.localEngine;
+  field("model-timeout").value = String(profile?.modelTimeoutSeconds ?? (backend === "jev" ? 30 : 180));
+  field("local-url").value = profile?.localBaseUrl || (field("local-engine").value === "logprobs" ? "http://127.0.0.1:8000" : "http://127.0.0.1:8080");
+  field("local-model").value = profile?.localModel || "jev-latest";
+  field("local-model-id").value = profile?.localModelId || "";
+  field("local-revision").value = profile?.localRevision || "";
+  field("local-key").value = "";
+  field("local-key").placeholder = profile?.localConfigured ? "已配置；留空保持现有密钥" : "未启用本地鉴权时留空";
+  renderBackendSettings();
+});
+field("local-engine").addEventListener("change", () => {
+  const profile = status?.profiles?.[field("local-engine").value];
+  if (profile) {
+    field("local-url").value = profile.localBaseUrl;
+    field("local-model").value = profile.localModel;
+    field("local-model-id").value = profile.localModelId;
+    field("local-revision").value = profile.localRevision;
+    field("model-timeout").value = String(profile.modelTimeoutSeconds);
+    field("local-key").value = "";
+    field("local-key").placeholder = profile.localConfigured ? "已配置；留空保持现有密钥" : "未启用本地鉴权时留空";
+  }
+  renderBackendSettings();
+});
 async function loadStatus() {
   status = await api("/api/status");
+  field("backend").value = status.settings.backend;
+  field("local-engine").value = status.settings.localEngine;
+  field("model-timeout").value = String(status.settings.modelTimeoutSeconds);
+  field("local-url").value = status.settings.localBaseUrl;
+  field("local-model").value = status.settings.localModel;
+  field("local-model-id").value = status.settings.localModelId;
+  field("local-revision").value = status.settings.localRevision;
+  field("local-key").placeholder = status.settings.localConfigured ? "已配置；留空保持现有密钥" : "未启用本地鉴权时留空";
+  renderBackendSettings();
   field("model").value = status.settings.model;
   field("aistock-path").value = status.settings.aistockPath;
   field("aistock-python").value = status.settings.aistockPython;
@@ -120,7 +166,8 @@ function renderResult() {
   el("quality").innerHTML = Object.entries(job.quality || {}).map(([name, value]) => `<div><dt>${escape(dataNames[name] || name)}</dt><dd class="${value === "available" ? "" : "degraded"}">${escape(dataStates[value] || value)}</dd></div>`).join("");
   text("data-subtitle", job.mode === "demo" ? "合成示例" : "保留缺失与降级状态");
   text("result-horizon", `未来 ${job.input.horizon} 个交易日`);
-  text("result-model", job.mode === "demo" ? "固定演示响应（未调用 Jev）" : signal.resolved_model || signal.requested_model);
+  text("inference-origin", signal.inference ? `推理来源：${signal.inference.backend === "jev" ? "Jev 云端" : signal.inference.backend === "recorded" ? "离线示例" : "本地决策引擎"} · ${({generated_probabilities: "模型生成概率", label_logprobs: "标签 logprobs", provider_reported: "提供商返回概率", recorded: "固定 / 录制响应"} as Record<string,string>)[signal.inference.probability_method] || signal.inference.probability_method}` : "");
+  text("result-model", job.mode === "demo" ? "固定演示响应（未调用 Jev）" : signal.inference?.reported_model || signal.resolved_model || signal.requested_model);
   text("result-time", time(signal.created_at, true));
   text("result-expiry", time(signal.valid_until, true));
   (el("export") as HTMLAnchorElement).href = `/api/jobs/${job.id}/export`;
@@ -144,9 +191,11 @@ button("live-mode").onclick = () => { mode = "live"; refreshControls(); };
 el("settings-form").addEventListener("submit", async event => {
   event.preventDefault(); button("save-settings").disabled = true; text("settings-feedback", "正在保存…");
   try {
-    await api("/api/settings", { apiKey: field("api-key").value, model: field("model").value,
+    await api("/api/settings", { backend: field("backend").value, localEngine: field("local-engine").value, modelTimeoutSeconds: Number(field("model-timeout").value),
+      localBaseUrl: field("local-url").value, localModel: field("local-model").value, localApiKey: field("local-key").value,
+      localModelId: field("local-model-id").value, localRevision: field("local-revision").value, apiKey: field("api-key").value, model: field("model").value,
       aistockPath: field("aistock-path").value, aistockPython: field("aistock-python").value });
-    field("api-key").value = ""; await loadStatus();
+    field("api-key").value = ""; field("local-key").value = ""; await loadStatus();
     text("settings-feedback", status.ready ? "已保存，真实分析已就绪。" : "已保存。请完成上方标注的待配置项。");
   } catch (error: any) { text("settings-feedback", error.message); }
   finally { button("save-settings").disabled = busy(); }

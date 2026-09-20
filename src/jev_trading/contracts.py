@@ -114,6 +114,15 @@ class ModelDecision(Contract):
         return self
 
 
+class InferenceMetadata(Contract):
+    backend: Literal["jev", "local", "localjev", "openjev_sglang", "recorded"]
+    probability_method: Literal["provider_reported", "generated_probabilities", "label_logprobs", "recorded"]
+    endpoint: str | None = None
+    declared_model: str | None = None
+    declared_revision: str | None = None
+    reported_model: str | None = None
+
+
 class DecisionSignal(Contract):
     schema_version: Literal["1"] = "1"
     decision_id: str
@@ -122,7 +131,8 @@ class DecisionSignal(Contract):
     created_at: datetime
     valid_until: datetime
     config: DecisionConfig
-    model_source: Literal["jev", "recorded"]
+    model_source: Literal["jev", "local", "localjev", "openjev_sglang", "recorded"]
+    inference: InferenceMetadata | None = None
     requested_model: str
     resolved_model: str | None = None
     model_action: Action | None = None

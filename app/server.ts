@@ -1,10 +1,10 @@
 import { ApiError, apiInput, decisionResponse, waitForJob } from "./api";
 import page from "../web/index.html";
 import { join } from "node:path";
-import { DATA, SettingsStore, readiness } from "./settings";
+import { DATA, SettingsStore, readiness, type Settings } from "./settings";
 import { JobStore, parseInput, type Job, type JobInput } from "./jobs";
 import { bridge, collectStock, pythonJSON } from "./python";
-import { classify } from "./model";
+import { classifyWithBackend, inferenceMetadata } from "./model";
 import { demoContext, demoResponse } from "./demo";
 
 const settings = new SettingsStore();
@@ -24,27 +24,27 @@ function update(job: Job, changes: Partial<Job>) {
   for (const client of clients) send(client, "job", job);
 }
 
-async function execute(job: Job) {
-  const current = settings.read();
+async function execute(job: Job, current: Settings) {
   const config = { horizon: `未来 ${job.input.horizon} 个交易日`, execution_assumption: job.input.execution,
     cost_assumption: `买卖合计成本及滑点假设为成交金额的 ${job.input.costPercent}%，不代表实际费率。`,
     strategy_instructions: job.input.instructions || "综合技术面、基本面、新闻、筹码与市场环境，证据不足时观望。",
     position: { state: job.input.position }, validity_seconds: job.input.execution === "immediate" ? 120 : 3600,
-    request_timeout_seconds: 30 };
+    request_timeout_seconds: current.modelTimeoutSeconds };
   try {
     update(job, { state: "collecting", progress: 15, message: job.mode === "demo" ? "载入合成演示数据" : "正在收集行情、新闻、基本面和技术指标，通常需要数十秒" });
     const context = job.mode === "demo" ? demoContext() : await collectStock(job.symbol, current, job.id);
     const quality = Object.fromEntries(Object.entries(context.pack.blocks).map(([name, value]: [string, any]) => [name, value.status]));
-    const model = job.mode === "demo" ? "offline-example-not-a-live-model" : current.model;
+    const model = job.mode === "demo" ? "offline-example-not-a-live-model" : current.backend === "jev" ? current.model : current.localModel;
     const prepared = await bridge({ operation: "prepare", context, config, model });
     update(job, { state: "evaluating", progress: 65, quality,
       message: prepared.reasons.length ? "数据校验发现限制，正在记录原因" : job.mode === "demo" ? "展示示例分类响应（未调用 Jev）" : "数据已就绪，Jev 正在判断买入、卖出或观望" });
+    let inference = job.mode === "demo" ? undefined : inferenceMetadata(current);
     let response: unknown = null, errorCode: string | undefined, latency = 0;
     if (!prepared.reasons.length) {
       if (job.mode === "demo") response = demoResponse();
       else {
         const started = performance.now();
-        try { const result = await classify(prepared.request, current.apiKey, 30_000); response = result.raw; latency = result.latencyMs; }
+        try { const result = await classifyWithBackend(prepared.request, current); response = result.raw; latency = result.latencyMs; inference = result.inference; }
         catch (error: any) {
           latency = Math.round(performance.now() - started);
           errorCode = ["TimeoutError", "AbortError"].includes(error?.name) ? "MODEL_TIMEOUT"
@@ -54,7 +54,7 @@ async function execute(job: Job) {
     }
     update(job, { state: "validating", progress: 90, message: "正在校验动作并保存决策依据" });
     const result = await bridge({ operation: "complete", context, config, model, response,
-      error_code: errorCode, latency_ms: latency, demo: job.mode === "demo", job_id: job.id,
+      error_code: errorCode, latency_ms: latency, inference, demo: job.mode === "demo", job_id: job.id,
       database: join(DATA, "decisions.db") });
     update(job, { state: "done", progress: 100, result,
       message: result.status === "error" ? "模型调用未成功，已保存错误记录" : "分析完成" });
@@ -71,10 +71,13 @@ function submit(input: JobInput, token: string): Job {
     return previous;
   }
   if (activeJob) throw new ApiError("BUSY", "已有分析正在运行，请稍后重试。", 409);
-  const state = readiness(settings);
+  const state = readiness(settings, input.backend, input.localEngine);
+  const current = settings.read(input.backend, input.localEngine);
   if (!(input.mode === "demo" ? state.demoReady : state.ready)) throw new ApiError("NOT_READY", "环境未就绪，请运行 bun run doctor 或查看 /v1/health。", 503);
-  const job = jobs.create(input, token); activeJob = job.id;
-  const task = execute(job).finally(() => tasks.delete(job.id));
+  const job = jobs.create(input, token);
+  job.backend = input.mode === "demo" ? "recorded" : current.backend; jobs.update(job);
+  activeJob = job.id;
+  const task = execute(job, current).finally(() => tasks.delete(job.id));
   tasks.set(job.id, task);
   return job;
 }
@@ -97,9 +100,17 @@ export const server = Bun.serve({
     if (!trustedRequest(req)) return json({ error: { code: "FORBIDDEN", message: "仅接受同源页面或本机 HTTP 客户端的 JSON 请求。" } }, 403);
     const url = new URL(req.url);
     try {
+      if (req.method === "GET" && url.pathname === "/v1/backends") {
+        return json({ default_backend: settings.read().backend, local_engines: (["generated", "logprobs"] as const).map(localEngine => { const state = readiness(settings, "local", localEngine); return {localEngine, probability_method: state.settings.probabilityMethod, configured: state.ready, model: state.settings.localModel}; }), backends: (["jev", "local"] as const).map(backend => {
+          const state = readiness(settings, backend);
+          return { backend, configured: state.ready, probability_method: state.settings.probabilityMethod,
+            model: backend === "jev" ? state.settings.model : state.settings.localModel,
+            checks: state.checks };
+        }) });
+      }
       if (req.method === "GET" && url.pathname === "/v1/health") {
         const state = readiness(settings);
-        return json({ api_version: "1", status: "ok", ready: state.ready, demo_ready: state.demoReady, checks: state.checks, active_request_id: activeJob });
+        return json({ api_version: "1", status: "ok", ready: state.ready, demo_ready: state.demoReady, checks: state.checks, active_request_id: activeJob, inference_backend: state.settings.backend, probability_method: state.settings.probabilityMethod });
       }
       if (req.method === "POST" && url.pathname === "/v1/decisions") {
         const { input, wait } = apiInput(await req.json());
@@ -117,7 +128,7 @@ export const server = Bun.serve({
         if (!job) throw new ApiError("NOT_FOUND", "未找到该决策请求。", 404);
         return json(decisionResponse(job));
       }
-      if (req.method === "GET" && url.pathname === "/api/status") return json({ ...readiness(settings), activeJob });
+      if (req.method === "GET" && url.pathname === "/api/status") return json({ ...readiness(settings), profiles: {jev: settings.public("jev"), local: settings.public("local"), generated: settings.public("local", "generated"), logprobs: settings.public("local", "logprobs")}, activeJob });
       if (req.method === "GET" && url.pathname === "/api/jobs") return json(jobs.list());
       if (req.method === "GET" && url.pathname === "/api/events") {
         let controller: ReadableStreamDefaultController<Uint8Array>;

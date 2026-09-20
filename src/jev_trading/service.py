@@ -28,6 +28,7 @@ async def decide(context: ContextSnapshot, config: DecisionConfig, classifier, s
         decision_id=run_id, context_id=context.context_id, symbol=context.symbol,
         created_at=started, valid_until=expires, config=config, status="skipped",
         model_source=classifier.source, requested_model=classifier.model,
+        inference=getattr(classifier, "inference", None),
         warnings=quality_warnings(context),
     )
     raw = None

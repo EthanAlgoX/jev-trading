@@ -41,6 +41,7 @@ curl -sS http://127.0.0.1:3000/v1/decisions \
 
 | 接口 | 用途 |
 | --- | --- |
+| `GET /v1/backends` | 默认后端及各后端配置状态，不返回密钥 |
 | `GET /v1/health` | 服务存活、真实/演示就绪状态、缺失配置和活动任务 |
 | `POST /v1/decisions` | 创建决策，短时间内完成则直接返回结果 |
 | `GET /v1/decisions/{request_id}` | 查询处理状态及决策 |
@@ -52,6 +53,8 @@ curl -sS http://127.0.0.1:3000/v1/decisions \
 | --- | --- |
 | `symbol` | 真实模式必填；如 600519、AAPL、HK00700 |
 | `position` | 必填：flat 空仓、long 已持有 |
+| `localEngine` | 可选：generated / logprobs；选择本地概率计算方法，省略使用已保存配置 |
+| `backend` | 本次请求后端：jev / local；省略使用服务端默认，不修改默认值 |
 | `mode` | live（默认）或 demo；不自动降级成演示 |
 | `horizon` | 1–250 个交易日，默认 5 |
 | `execution` | next_session_open（默认）或 immediate |
@@ -80,3 +83,24 @@ python3 examples/http_client.py --request-id <已有请求ID>
 [客户端示例](../examples/http_client.py) 封装提交与轮询，输出完整 JSON。通过 `result['decision']['final_action']` 读取最终动作，同时检查状态、有效期和模式。分类信号不是成交指令，服务不访问交易账户或下单。
 
 服务重启后已完成记录保留，运行中任务标为失败，不自动重发付费推理。再次分析时使用新幂等标识。
+
+## 切换云端与本地模型
+
+服务端支持 `JEV_BACKEND=jev|local`。本地模式不要求 Jev 云端密钥，请求体和 URL 不变；请求可通过 `backend` 选择已配置的后端；不接受调用方传入任意后端 URL 或密钥。省略该字段时使用服务端默认值，不因一次请求改变网页选择。部署、下载权重的边界和概率原理见 [本地推理指南](local-inference.md)。
+
+`model_source` 现在还可能是 `local`。新增 `inference` 对象记录后端、概率来源、地址、声明的模型 ID/revision，以及可用的上游实际模型响应头。历史记录可能没有该字段。`generated` 的概率来自生成的 JSON，`logprobs` 的概率来自标签分数，不应混为同类统计结果。`mode: demo` 始终使用固定响应。
+
+`GET /v1/health` 额外返回 `inference_backend` 与 `probability_method`，仍不执行推理连通性测试；用 `bun run backend:check` 检查本地模型服务的就绪端点。切换后端后使用新的幂等标识发起新分析，复用旧标识仍返回旧任务。
+
+### 按请求选择本地模型
+
+```sh
+curl -sS http://127.0.0.1:3000/v1/decisions \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: local-stock-002' \
+  -d '{"symbol":"600519","position":"flat","backend":"local","waitSeconds":0}'
+```
+
+云端请求将 `backend` 改为 `jev`；本地决策引擎使用 `local`。每种后端的模型地址和鉴权仍在服务端配置。响应的 `inference_backend` 表示本次任务实际选择的后端，demo 始终为 recorded。后台执行使用提交时的配置快照。
+
+同一幂等标识改变 `backend` 返回 409；省略 `backend` 的历史请求即使服务默认已变，也返回原任务。要重新分析请使用新标识。

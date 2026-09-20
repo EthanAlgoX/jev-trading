@@ -1,9 +1,10 @@
+import { backendName, engineName, legacyEngine, type LocalEngine, type Backend } from "./backends";
 import { Database } from "bun:sqlite";
 
 export type JobState = "queued" | "collecting" | "evaluating" | "validating" | "done" | "failed";
 export interface Job { id: string; symbol: string; mode: "demo" | "live"; state: JobState; progress: number;
-  createdAt: string; message: string; input: JobInput; result?: any; quality?: Record<string, string>; }
-export interface JobInput { symbol: string; mode: "demo" | "live"; horizon: number; position: "flat" | "long";
+  backend?: Backend | "recorded"; createdAt: string; message: string; input: JobInput; result?: any; quality?: Record<string, string>; }
+export interface JobInput { backend?: Backend; localEngine?: LocalEngine; symbol: string; mode: "demo" | "live"; horizon: number; position: "flat" | "long";
   costPercent: number; execution: "next_session_open" | "immediate"; instructions: string; }
 
 export function parseInput(body: any): JobInput {
@@ -17,7 +18,7 @@ export function parseInput(body: any): JobInput {
   if (typeof body.costPercent !== "number" || !Number.isFinite(body.costPercent) || body.costPercent < 0 || body.costPercent > 10) throw new Error("成本假设应为 0% 至 10%。");
   if (typeof body.instructions !== "string" || body.instructions.length > 8000) throw new Error("策略说明请控制在 8000 字以内。");
   return { symbol, mode: body.mode, horizon: body.horizon, position: body.position,
-    costPercent: body.costPercent, execution: body.execution, instructions: body.instructions.trim() };
+    costPercent: body.costPercent, execution: body.execution, instructions: body.instructions.trim(), ...(body.backend === undefined ? {} : { backend: backendName(body.backend) }), ...(body.localEngine === undefined && !legacyEngine(body.backend) ? {} : {localEngine: engineName(body.localEngine ?? body.backend)}) };
 }
 
 export class JobStore {

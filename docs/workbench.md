@@ -48,3 +48,7 @@ start.command / bun run start
 - 导出包含 context、request、raw_response、signal；演示记录标记 recorded。跨来源写请求返回 403，SSE 心跳跨越默认空闲时间仍保持连接。
 
 未提供真实 Jev API Key，因此尚未验证在线推理或账户权限；以上 SDK 测试不等同于在线服务验证。AIStock 真实采集的首版验证见 [首版开发记录](implementation.md)。本项目不执行真实订单，分类概率不代表盈利胜率。
+
+## 可选本地推理后端
+
+统一采用 `local` 本地决策引擎，计算方式为 `generated` 或 `logprobs`，HTTP 和网页入口共用选择。云端保留原 SDK 调用，本地走 `/v1/systemone` 兼容 HTTP。Python CLI 也支持相同后端，密钥分离，禁止本地失败后自动回退云端。决策增加来源与概率方法记录。参考项目原理和部署步骤见 [本地模型指南](local-inference.md)。

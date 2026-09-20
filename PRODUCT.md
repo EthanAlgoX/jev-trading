@@ -11,7 +11,7 @@ local HTTP service with optional web UI
 复用 AIStock 多源单股分析与参考 jev-trader 的 Jev SDK，输出买入、卖出或观望。
 
 ## Capabilities and Constraints
-本地运行，仅输出信号；真实模式需要 AIStock 与 Jev 密钥。演示数据与真实结果必须清楚区分。已有 Python 护栏与 SQLite 审计记录保留。原项目有 Bun 服务与推送模式，可作为应用入口参考。
+本地运行，仅输出信号；真实模式需要 AIStock，并可选择 Jev 云端（需密钥）或本地决策引擎（生成式概率 / 标签 logprobs）。演示数据与真实结果必须清楚区分。已有 Python 护栏与 SQLite 审计记录保留。原项目有 Bun 服务与推送模式，可作为应用入口参考。
 
 ## Evidence on Hand
 reference/src/model.ts 是 SDK 调用参考；reference/web 提供现有视觉系统。用户已经要求自主开发与更易上手，沿用这些事实，不重复产品访谈。

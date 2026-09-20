@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from pydantic import ValidationError
 
-from .contracts import ContextSnapshot, DecisionConfig, ModelDecision, canonical, digest
+from .contracts import ContextSnapshot, DecisionConfig, ModelDecision, InferenceMetadata, canonical, digest
 
 ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 
@@ -71,12 +72,17 @@ class JevClassifier:
             raise ValueError("TYPESAFE_API_KEY and JEV_MODEL are required")
         self.api_key, self.model, self.transport = api_key, model, transport
         self.cache_identity = model
+        self.endpoint = ENDPOINT
+        self.inference = InferenceMetadata(backend="jev", probability_method="provider_reported", endpoint=ENDPOINT)
 
     async def classify(self, request: dict, timeout: float) -> dict:
         async def send() -> dict:
             async with httpx.AsyncClient(timeout=timeout, transport=self.transport, follow_redirects=False) as client:
-                response = await client.post(ENDPOINT, headers={"Authorization": f"Bearer {self.api_key}"}, json=request)
+                response = await client.post(self.endpoint,
+                    headers={"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}, json=request)
                 response.raise_for_status()
+                if self.source == "local":
+                    self.inference.reported_model = response.headers.get("x-inference-model") or response.headers.get("x-openjev-model")
                 raw = response.json()
                 if not isinstance(raw, dict):
                     raise ModelFailure("INVALID_MODEL_RESPONSE")
@@ -91,6 +97,30 @@ class JevClassifier:
             raise ModelFailure("MODEL_NETWORK_ERROR") from exc
         except (json.JSONDecodeError, UnicodeError) as exc:
             raise ModelFailure("INVALID_MODEL_RESPONSE") from exc
+
+
+class LocalClassifier(JevClassifier):
+    """Jev-compatible local wire protocol; never falls back to the cloud."""
+    def __init__(self, backend: str, base_url: str, model: str = "jev-latest", api_key: str = "",
+                 declared_model: str | None = None, declared_revision: str | None = None,
+                 transport: httpx.AsyncBaseTransport | None = None):
+        backend = {"localjev": "generated", "openjev_sglang": "logprobs"}.get(backend, backend)
+        if backend not in {"generated", "logprobs"}:
+            raise ValueError("unsupported local backend")
+        url = urlsplit(base_url)
+        if (url.scheme not in {"http", "https"} or url.hostname not in {"127.0.0.1", "localhost", "::1"}
+                or url.username or url.password or url.query or url.fragment
+                or url.path not in {"", "/", "/v1", "/v1/"}):
+            raise ValueError("local backend must use a loopback HTTP(S) base URL without credentials")
+        if not model.strip() or "\n" in api_key or "\r" in api_key:
+            raise ValueError("invalid local model configuration")
+        self.source, self.model, self.api_key, self.transport = "local", model, api_key, transport
+        self.endpoint = f"{url.scheme}://{url.netloc}/v1/systemone"
+        self.inference = InferenceMetadata(
+            backend="local",
+            probability_method="generated_probabilities" if backend == "generated" else "label_logprobs",
+            endpoint=self.endpoint, declared_model=declared_model or None, declared_revision=declared_revision or None)
+        self.cache_identity = digest({"model": model, "inference": self.inference.model_dump()})
 
 
 class RecordedClassifier:

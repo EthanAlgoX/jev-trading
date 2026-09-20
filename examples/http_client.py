@@ -23,6 +23,8 @@ def request(base, path, payload=None, key=None):
 def main():
     parser = argparse.ArgumentParser(description="调用自行部署的 Jev 本地决策服务")
     parser.add_argument("--base-url", default="http://127.0.0.1:3000")
+    parser.add_argument("--local-engine", choices=["generated", "logprobs"], help="本地引擎的概率计算方式；省略则使用服务端配置")
+    parser.add_argument("--backend", choices=["jev", "local"], help="本次分析使用的后端；省略则使用服务端默认")
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--symbol", default="600519")
     parser.add_argument("--position", choices=["flat", "long"], default="flat")
@@ -39,9 +41,11 @@ def main():
         result = request(base, "/v1/decisions", {
             "symbol": args.symbol, "position": args.position,
             "mode": "demo" if args.demo else "live", "waitSeconds": 0,
+            **({"backend": args.backend} if args.backend else {}),
+            **({"localEngine": args.local_engine} if args.local_engine else {}),
         }, key)
     print(f"Request ID: {result['request_id']}", file=sys.stderr)
-    deadline = time.monotonic() + 360
+    deadline = time.monotonic() + 600
     while result["state"] not in {"done", "failed"}:
         if time.monotonic() >= deadline:
             raise RuntimeError(f"等待超时，任务可能仍在运行；用 --request-id {result['request_id']} 恢复查询。")
