@@ -1,0 +1,95 @@
+{
+  "checkedAt": "2026-09-20T14:47:23.021Z",
+  "results": [
+    {
+      "test": "direct_local_chat",
+      "httpStatus": 200,
+      "model": "qwen3.5-0.8b-q8",
+      "content": "4",
+      "usage": {
+        "completion_tokens": 2,
+        "prompt_tokens": 22,
+        "total_tokens": 24,
+        "prompt_tokens_details": {
+          "cached_tokens": 18
+        }
+      }
+    },
+    {
+      "test": "normal",
+      "httpStatus": 200,
+      "state": "done",
+      "modelSource": "local",
+      "status": "accepted",
+      "action": "hold",
+      "modelAction": "hold",
+      "probabilities": {
+        "buy": 0.08329676897897911,
+        "sell": 0.38630958412523825,
+        "hold": 0.5303936468957826
+      },
+      "inference": {
+        "backend": "local",
+        "probability_method": "label_logprobs",
+        "endpoint": "http://127.0.0.1:8089/v1/systemone",
+        "declared_model": "Qwen/Qwen3.5-0.8B",
+        "declared_revision": "unsloth-6ab461498e2023f6e3c1baea90a8f0fe38ab64d0-Q8_0",
+        "reported_model": "Qwen/Qwen3.5-0.8B-Q8_0"
+      },
+      "latencyMs": 352,
+      "totalMs": 989,
+      "reasons": [],
+      "error": null
+    },
+    {
+      "test": "risk",
+      "httpStatus": 200,
+      "state": "done",
+      "modelSource": "local",
+      "status": "accepted",
+      "action": "hold",
+      "modelAction": "hold",
+      "probabilities": {
+        "buy": 0.07866196592888906,
+        "sell": 0.4512950629968119,
+        "hold": 0.47004297107429904
+      },
+      "inference": {
+        "backend": "local",
+        "probability_method": "label_logprobs",
+        "endpoint": "http://127.0.0.1:8089/v1/systemone",
+        "declared_model": "Qwen/Qwen3.5-0.8B",
+        "declared_revision": "unsloth-6ab461498e2023f6e3c1baea90a8f0fe38ab64d0-Q8_0",
+        "reported_model": "Qwen/Qwen3.5-0.8B-Q8_0"
+      },
+      "latencyMs": 274,
+      "totalMs": 788,
+      "reasons": [],
+      "error": null
+    },
+    {
+      "test": "missing-core",
+      "httpStatus": 200,
+      "state": "done",
+      "modelSource": "local",
+      "status": "skipped",
+      "action": "hold",
+      "modelAction": null,
+      "probabilities": null,
+      "inference": {
+        "backend": "local",
+        "probability_method": "label_logprobs",
+        "endpoint": "http://127.0.0.1:8089/v1/systemone",
+        "declared_model": "Qwen/Qwen3.5-0.8B",
+        "declared_revision": "unsloth-6ab461498e2023f6e3c1baea90a8f0fe38ab64d0-Q8_0",
+        "reported_model": null
+      },
+      "latencyMs": null,
+      "totalMs": 503,
+      "reasons": [
+        "UNUSABLE_TECHNICAL"
+      ],
+      "error": null
+    }
+  ]
+}
