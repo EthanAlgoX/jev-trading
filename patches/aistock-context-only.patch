@@ -1,0 +1,227 @@
+diff --git a/src/core/pipeline.py b/src/core/pipeline.py
+index 1806f14..a48d318 100644
+--- a/src/core/pipeline.py
++++ b/src/core/pipeline.py
+@@ -21,7 +21,7 @@ from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
+ from concurrent.futures import as_completed
+ from datetime import date, datetime, timedelta, timezone
+ from types import SimpleNamespace
+-from typing import List, Dict, Any, Optional, Tuple, Callable
++from typing import List, Dict, Any, Optional, Tuple, Callable, Union
+ 
+ import pandas as pd
+ 
+@@ -225,6 +225,7 @@ class StockAnalysisPipeline:
+         portfolio_context: Optional[Dict[str, Any]] = None,
+         daily_market_context_enabled: Optional[bool] = None,
+         daily_market_context_allow_generate: bool = True,
++        context_only: bool = False,
+     ):
+         """
+         初始化调度器
+@@ -232,7 +233,9 @@ class StockAnalysisPipeline:
+         Args:
+             config: 配置对象（可选，默认使用全局配置）
+             max_workers: 最大并发线程数（可选，默认从配置读取）
++            context_only: 只返回采集结果，不生成报告、运行 Agent 或通知。
+         """
++        self.context_only = context_only
+         self.config = config or get_config()
+         self.max_workers = max_workers or self.config.max_workers
+         self.source_message = source_message
+@@ -251,15 +254,15 @@ class StockAnalysisPipeline:
+             if daily_market_context_enabled is None
+             else bool(daily_market_context_enabled)
+         )
+-        self.daily_market_context_allow_generate = daily_market_context_allow_generate
++        self.daily_market_context_allow_generate = daily_market_context_allow_generate and not context_only
+         
+         # 初始化各模块
+         self.db = get_db()
+         self.fetcher_manager = DataFetcherManager()
+         # 不再单独创建 akshare_fetcher，统一使用 fetcher_manager 获取增强数据
+         self.trend_analyzer = StockTrendAnalyzer()  # 技术分析器
+-        self.analyzer = GeminiAnalyzer(config=self.config, skills=self.analysis_skills)
+-        self.notifier = NotificationService(source_message=source_message)
++        self.analyzer = None if context_only else GeminiAnalyzer(config=self.config, skills=self.analysis_skills)
++        self.notifier = None if context_only else NotificationService(source_message=source_message)
+         self.market_structure_service = MarketStructureService(fetcher_manager=self.fetcher_manager)
+         self.market_hotspot_service: Optional[MarketHotspotService] = None
+         try:
+@@ -409,7 +412,7 @@ class StockAnalysisPipeline:
+         report_type: ReportType,
+         query_id: str,
+         current_time: Optional[datetime] = None,
+-    ) -> Optional[AnalysisResult]:
++    ) -> Optional[Union[AnalysisResult, PipelineAnalysisArtifacts]]:
+         """
+         分析单只股票（增强版：含量比、换手率、筹码分析、多维度情报）
+         
+@@ -582,7 +585,7 @@ class StockAnalysisPipeline:
+             except Exception as e:
+                 logger.warning(f"{stock_name}({code}) 趋势分析失败: {e}", exc_info=True)
+ 
+-            if use_agent:
++            if use_agent and not getattr(self, 'context_only', False):
+                 logger.info(f"{stock_name}({code}) 启用 Agent 模式进行分析")
+                 self._emit_progress(58, f"{stock_name}：正在切换 Agent 分析链路")
+                 return self._analyze_with_agent(
+@@ -708,27 +711,33 @@ class StockAnalysisPipeline:
+             if isinstance(market_structure_context, dict):
+                 enhanced_context["market_structure_context"] = market_structure_context
+             
++            # Shared collection boundary: decision consumers can use the inputs
++            # without generating a report, running an Agent, or sending notices.
++            artifacts = self._build_legacy_analysis_artifacts(
++                code=code,
++                stock_name=stock_name,
++                market=market,
++                phase=market_phase_context_dict,
++                context=context,
++                enhanced_context=enhanced_context,
++                realtime_quote=realtime_quote,
++                trend_result=trend_result,
++                chip_data=chip_data,
++                fundamental_context=fundamental_context,
++                news_context=news_context,
++                news_result_count=news_result_count,
++                query_id=query_id,
++                portfolio_context=portfolio_context,
++            )
++            if getattr(self, "context_only", False):
++                return artifacts
++
+             # Step 7: 调用 AI 分析（传入增强的上下文和新闻）
+             (
+                 analysis_context_pack_summary,
+                 analysis_context_pack_overview,
+             ) = self._build_analysis_context_pack_outputs(
+-                self._build_legacy_analysis_artifacts(
+-                    code=code,
+-                    stock_name=stock_name,
+-                    market=market,
+-                    phase=market_phase_context_dict,
+-                    context=context,
+-                    enhanced_context=enhanced_context,
+-                    realtime_quote=realtime_quote,
+-                    trend_result=trend_result,
+-                    chip_data=chip_data,
+-                    fundamental_context=fundamental_context,
+-                    news_context=news_context,
+-                    news_result_count=news_result_count,
+-                    query_id=query_id,
+-                    portfolio_context=portfolio_context,
+-                ),
++                artifacts,
+                 report_language=report_language,
+                 code=code,
+                 query_id=query_id,
+@@ -3024,7 +3033,7 @@ class StockAnalysisPipeline:
+         report_type: ReportType = ReportType.SIMPLE,
+         analysis_query_id: Optional[str] = None,
+         current_time: Optional[datetime] = None,
+-    ) -> Optional[AnalysisResult]:
++    ) -> Optional[Union[AnalysisResult, PipelineAnalysisArtifacts]]:
+         """
+         处理单只股票的完整流程
+ 
+@@ -3084,6 +3093,8 @@ class StockAnalysisPipeline:
+             if current_time is not None:
+                 analyze_kwargs["current_time"] = current_time
+             result = self.analyze_stock(code, report_type, **analyze_kwargs)
++            if getattr(self, "context_only", False):
++                return result
+             
+             if result and result.success:
+                 logger.info(
+@@ -3140,6 +3151,9 @@ class StockAnalysisPipeline:
+         Returns:
+             分析结果列表
+         """
++        if getattr(self, "context_only", False):
++            raise ValueError("context_only requires process_single_stock, not report batch run")
++
+         start_time = time.time()
+         
+         # 使用配置中的股票列表
+--- /dev/null
++++ b/docs/context-only-analysis.md
+@@ -0,0 +1,25 @@
++# 单股上下文采集模式
++
++`StockAnalysisPipeline(context_only=True)` 通过 `process_single_stock` 返回
++`PipelineAnalysisArtifacts`，供外部分类器复用单股分析输入。
++
++```python
++pipeline = StockAnalysisPipeline(context_only=True, portfolio_context={})
++artifacts = pipeline.process_single_stock("600519", single_stock_notify=False)
++```
++
++此模式保留历史数据获取、实时行情、筹码、基本面、技术指标、新闻和增强上下文。
++不初始化报告分析器和通知器，不进入 Agent 分支，不生成或保存分析报告，也不从报告抽取信号。
++大盘上下文只复用已有结果，不生成新的大盘报告。
++
++`AnalysisContextBuilder.build(artifacts)` 可生成标准数据包；完整增强上下文仍在
++`artifacts.enhanced_context`。daily_bars 包含 today / yesterday，不是完整历史序列。
++
++接口返回 None 表示采集流水线失败；返回 artifacts 仍可能含降级或缺失数据，消费方必须校验。
++`context_only` 不支持报告批处理 `run()`，调用会显式报错。
++
++默认 `context_only=False`，现有报告流程保持原语义。本扩展无新增环境变量。
++
++验证：`python -m pytest tests/test_pipeline_context_only.py tests/test_pipeline_market_phase_context.py tests/test_analysis_context_builder.py tests/test_pipeline_fetch_error.py -q`。
++
++回滚：移除 context_only 参数、相应返回分支及配套测试/文档；外部消费方需要同步停止使用该入口。
+--- /dev/null
++++ b/tests/test_pipeline_context_only.py
+@@ -0,0 +1,50 @@
++"""Context-only uses the real collection branch but never the report/Agent branch."""
++from datetime import date, datetime, timezone
++from types import SimpleNamespace
++from unittest.mock import MagicMock, patch
++
++import pytest
++
++from tests.test_pipeline_market_phase_context import _make_pipeline, _phase_payload
++from src.core.pipeline import StockAnalysisPipeline
++from src.services.daily_market_context import DailyMarketContext
++from src.services.analysis_context_builder import PipelineAnalysisArtifacts
++
++
++@pytest.mark.parametrize("agent_mode,skills", [(False, []), (True, []), (False, ["bull_trend"])])
++def test_context_only_collects_without_agent_report_or_notification(agent_mode, skills):
++    pipeline = _make_pipeline(agent_mode=agent_mode)
++    pipeline.context_only = True
++    pipeline.config.agent_skills = skills
++    pipeline._load_daily_market_context = MagicMock(return_value=DailyMarketContext(
++        trade_date=date(2026, 3, 26), region="cn", summary="高风险", risk_tags=["high_risk"], source="test"))
++    pipeline._load_persisted_intelligence_context = MagicMock(return_value="Existing news evidence")
++    pipeline._build_market_structure_context = MagicMock(return_value={"regime": "range"})
++    pipeline._analyze_with_agent = MagicMock(side_effect=AssertionError("Agent must not run"))
++    pipeline._send_single_stock_notification = MagicMock(side_effect=AssertionError("No notification"))
++    pipeline.fetch_and_save_stock_data = MagicMock(return_value=(True, None))
++    phase = SimpleNamespace(to_dict=lambda: _phase_payload())
++    with patch("src.core.pipeline.build_market_phase_context", return_value=phase), patch.object(
++        pipeline, "_resolve_resume_target_date", return_value=date(2026, 3, 26)
++    ):
++        result = pipeline.process_single_stock(
++            "600519", single_stock_notify=True,
++            current_time=datetime(2026, 3, 27, 2, tzinfo=timezone.utc),
++        )
++    assert isinstance(result, PipelineAnalysisArtifacts)
++    assert result.code == "600519"
++    assert result.news_context == "Existing news evidence"
++    assert result.enhanced_context["market_structure_context"] == {"regime": "range"}
++    pipeline.fetcher_manager.get_fundamental_context.assert_called_once()
++    pipeline.fetcher_manager.get_chip_distribution.assert_called_once()
++    pipeline.analyzer.analyze.assert_not_called()
++    pipeline._analyze_with_agent.assert_not_called()
++    pipeline.db.save_analysis_history.assert_not_called()
++    pipeline._send_single_stock_notification.assert_not_called()
++
++
++def test_context_only_rejects_report_batch_api():
++    pipeline = StockAnalysisPipeline.__new__(StockAnalysisPipeline)
++    pipeline.context_only = True
++    with pytest.raises(ValueError, match="process_single_stock"):
++        pipeline.run()

@@ -1,0 +1,12 @@
+{
+  "model": "offline-example-not-a-live-model",
+  "answers": {
+    "action": {
+      "type": "choice",
+      "choice": "buy",
+      "probabilities": {"buy": 0.76, "sell": 0.08, "hold": 0.16},
+      "confidence": 0.5
+    }
+  },
+  "usage": {}
+}

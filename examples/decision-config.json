@@ -1,0 +1,9 @@
+{
+  "horizon": "未来 5 个交易日（示例配置，可修改）",
+  "execution_assumption": "next_session_open",
+  "cost_assumption": "假设买卖合计成本及滑点为成交金额的 0.3%；仅用于示例判断，不代表真实费率。",
+  "strategy_instructions": "综合趋势、量价、基本面、新闻、筹码与大盘环境。证据不足时观望，不强制交易。",
+  "position": {"state": "flat"},
+  "validity_seconds": 3600,
+  "request_timeout_seconds": 30
+}

@@ -1,0 +1,19 @@
+[project]
+name = "jev-trading"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "AIStock multi-source analysis with Jev decision output"
+dependencies = ["httpx>=0.28,<0.29", "pydantic>=2.11,<3"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+jev-trading = "jev_trading.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,22 @@
+{
+  "name": "jev-stock-workbench",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run app/launch.ts",
+    "dev": "NODE_ENV=development bun --hot run app/server.ts",
+    "doctor": "bun run app/doctor.ts",
+    "test": "bun test app",
+    "typecheck": "tsc --noEmit",
+    "serve": "OPEN_BROWSER=0 bun run app/launch.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/typesafe-ai": "3.0.0",
+    "ai": "7.0.103"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.10",
+    "typescript": "5.9.3"
+  }
+}
