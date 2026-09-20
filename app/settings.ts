@@ -94,7 +94,7 @@ export class SettingsStore {
   }
 }
 
-export function readiness(settings: SettingsStore, override?: Backend, engineOverride?: LocalEngine) {
+export function readiness(settings: SettingsStore, override?: Backend, engineOverride?: LocalEngine, suppliedContext = false) {
   const value = settings.read(override, engineOverride);
   const source = join(value.aistockPath, "src/core/pipeline.py");
   const checks = [
@@ -106,5 +106,5 @@ export function readiness(settings: SettingsStore, override?: Backend, engineOve
       ? { id: "key", label: "Jev API Key", ok: Boolean(value.apiKey), hint: "在连接设置中填写 API Key，或配置 .env。" }
       : { id: "local", label: "本地决策引擎地址已配置（未探测连接）", ok: Boolean(value.localBaseUrl), hint: "运行 bun run backend:check 验证本地推理服务。" },
   ];
-  return { checks, ready: checks.every(c => c.ok), demoReady: checks[0].ok, settings: settings.public(override, engineOverride) };
+  return { checks, ready: checks.filter(c => !suppliedContext || !["aistock", "collector", "patch"].includes(c.id)).every(c => c.ok), demoReady: checks[0].ok, settings: settings.public(override, engineOverride) };
 }

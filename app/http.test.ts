@@ -94,5 +94,42 @@ Path(sys.argv[sys.argv.index('--output')+1]).write_text(json.dumps(c))
     expect((await post({symbol:"AAPL",position:"flat",backend:"jev"},"request-generated")).status).toBe(409);
     expect((await post({symbol:"AAPL",position:"flat",backend:"jev"},"cloud-no-key")).status).toBe(503);
     expect((await (await fetch(base+"/v1/backends")).json() as any).default_backend).toBe("jev");
+    // Supplied contexts require only the model, not an AIStock installation.
+    await save({backend:"local", localEngine:"generated", aistockPath:join(dir,"missing"), aistockPython:join(dir,"missing-python")});
+    const health:any = await (await fetch(base+"/v1/health")).json();
+    expect(health.ready).toBe(false); expect(health.supplied_context_ready).toBe(true);
+    const strategyRequest = (payload:any) => fetch(base+"/v1/strategies", {method:"POST", headers:{"content-type":"application/json"},body:JSON.stringify(payload)});
+    const strategy:any = await (await strategyRequest({name:"测试趋势",instructions:"关注趋势，缺失数据时观望"})).json();
+    expect(strategy.version).toBe(1);
+    const supplied:any = {...demoContext(), symbol:"AAPL"}; supplied.pack.subject.code="AAPL";
+    supplied.enhanced_context={note:"x".repeat(40000)};
+    const suppliedBody={symbol:"AAPL",position:"flat",backend:"local",localEngine:"generated",context:supplied,strategyId:strategy.id};
+    const invalid=await post({...suppliedBody,context:{symbol:"AAPL"}},"invalid-context");
+    expect(invalid.status).toBe(400); expect((await invalid.json() as any).error.code).toBe("INVALID_CONTEXT");
+    const startCalls=calls.generated;
+    const suppliedResponse=await post(suppliedBody,"supplied-context");
+    expect(suppliedResponse.status).toBe(200);
+    const suppliedResult:any=await suppliedResponse.json();
+    expect(suppliedResult.decision.status).toBe("accepted"); expect(calls.generated).toBe(startCalls+1);
+    const suppliedEvidence:any=await (await fetch(base+suppliedResult.links.evidence)).json();
+    expect(JSON.parse(suppliedEvidence.request.state).decision_config.strategy_instructions).toBe(strategy.instructions);
+    expect(suppliedEvidence.context.provenance.decision_input.source).toBe("supplied");
+    expect(suppliedEvidence.context.provenance.decision_input.strategy.version).toBe(1);
+    const revised:any=await (await strategyRequest({id:strategy.id,name:strategy.name,instructions:"修改后的偏好"})).json();
+    expect(revised.version).toBe(2);
+    const retry:any=await (await post(suppliedBody,"supplied-context")).json();
+    expect(retry.request_id).toBe(suppliedResult.request_id); expect(calls.generated).toBe(startCalls+1);
+    const overridden:any=await (await post({...suppliedBody,instructions:"仅本次使用的偏好"},"override-context")).json();
+    const overrideEvidence:any=await (await fetch(base+overridden.links.evidence)).json();
+    expect(JSON.parse(overrideEvidence.request.state).decision_config.strategy_instructions).toBe("仅本次使用的偏好");
+    expect(overrideEvidence.context.provenance.decision_input.strategy.version).toBe(2);
+    const beforeStale=calls.generated;
+    const stale:any=await (await post({...suppliedBody,context:{...supplied,captured_at:"2000-01-01T00:00:00Z"}},"stale-context")).json();
+    expect(stale.decision.status).toBe("expired"); expect(stale.decision.reason_codes).toContain("CONTEXT_EXPIRED");
+    expect(calls.generated).toBe(beforeStale);
+    expect((await fetch(base+"/v1/strategies/"+strategy.id,{method:"DELETE",headers:{"content-type":"application/json"}})).status).toBe(200);
+    expect((await post(suppliedBody,"deleted-strategy")).status).toBe(404);
+    expect((await post(suppliedBody,"supplied-context")).status).toBe(200);
+
   } finally { clearTimeout(timer); proc.kill(); await proc.exited; for(const server of Object.values(upstreams)) server.stop(true); rmSync(dir,{recursive:true,force:true}); }
-},20000);
+},30000);

@@ -2,6 +2,8 @@
 
 No dependency on the jev_trading package, no credentials in the payload.
 """
+from collection_options import configure_environment, pipeline_class, mark_disabled
+
 import argparse
 import hashlib
 import inspect
@@ -37,6 +39,7 @@ def main():
     parser.add_argument("--symbol", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--database", required=True)
+    parser.add_argument("--collection-options", type=json.loads, default={})
     args = parser.parse_args()
     root = Path(args.root).resolve()
     sys.path.insert(0, str(root))
@@ -45,6 +48,7 @@ def main():
     os.environ["DATABASE_PATH"] = args.database
     from dotenv import load_dotenv
     load_dotenv(root / ".env", override=False)
+    configure_environment(args.collection_options)
     from data_provider.base import normalize_stock_code
     from src.core.pipeline import StockAnalysisPipeline
     from src.daily_market_context_guardrail import _is_conservative_context
@@ -55,7 +59,7 @@ def main():
         raise RuntimeError("AISTOCK_CONTEXT_ONLY_PATCH_REQUIRED")
     started = datetime.now(timezone.utc)
     symbol = normalize_stock_code(args.symbol)
-    pipeline = StockAnalysisPipeline(context_only=True, portfolio_context={},
+    pipeline = pipeline_class(StockAnalysisPipeline, args.collection_options)(context_only=True, portfolio_context={},
                                      daily_market_context_allow_generate=False)
     artifacts = pipeline.process_single_stock(symbol, current_time=started, single_stock_notify=False)
     if not isinstance(artifacts, PipelineAnalysisArtifacts):
@@ -83,7 +87,7 @@ def main():
                        "history_note": "stored bars, not guaranteed point-in-time historical data"},
     }
     Path(args.output).write_text(
-        json.dumps(json_safe(redact_sensitive_mapping(snapshot)), ensure_ascii=False, allow_nan=False),
+        json.dumps(json_safe(redact_sensitive_mapping(mark_disabled(snapshot, args.collection_options))), ensure_ascii=False, allow_nan=False),
         encoding="utf-8",
     )
 

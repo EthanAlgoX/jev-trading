@@ -19,11 +19,11 @@ export async function pythonJSON(args: string[], input?: unknown, timeout = 350_
   } finally { clearTimeout(timer); }
 }
 
-export async function collectStock(symbol: string, settings: Settings, jobId: string) {
+export async function collectStock(symbol: string, settings: Settings, jobId: string, collection?: import("./customization").CollectionOptions) {
   const output = join(DATA, "contexts", `${jobId}.json`);
   await pythonJSON(["-m", "jev_trading.cli", "collect", "--symbol", symbol, "--output", output,
     "--aistock-path", settings.aistockPath, "--aistock-python", settings.aistockPython,
-    "--data-dir", DATA, "--collection-timeout", "240"], undefined, 260_000);
+    "--data-dir", DATA, "--collection-timeout", "240", ...(collection ? ["--collection-options", JSON.stringify(collection)] : [])], undefined, 260_000);
   return Bun.file(output).json();
 }
 

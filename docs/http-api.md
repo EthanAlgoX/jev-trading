@@ -43,6 +43,8 @@ curl -sS http://127.0.0.1:3000/v1/decisions \
 | --- | --- |
 | `GET /v1/backends` | 默认后端及各后端配置状态，不返回密钥 |
 | `GET /v1/health` | 服务存活、真实/演示就绪状态、缺失配置和活动任务 |
+| `GET /v1/strategies` / `POST /v1/strategies` | 列出、新建或更新策略模板 |
+| `DELETE /v1/strategies/{id}` | 删除模板，保留历史快照 |
 | `POST /v1/decisions` | 创建决策，短时间内完成则直接返回结果 |
 | `GET /v1/decisions/{request_id}` | 查询处理状态及决策 |
 | `GET /v1/decisions/{request_id}/evidence` | 导出原始上下文、请求、响应和审计信号 |
@@ -60,7 +62,12 @@ curl -sS http://127.0.0.1:3000/v1/decisions \
 | `execution` | next_session_open（默认）或 immediate |
 | `costPercent` | 往返成本与滑点百分比，0–10，默认 0.3；仅分析假设 |
 | `instructions` | 策略说明，最多 8000 字符，默认空字符串 |
+| `strategyId` | 可选：已保存的策略编号；非空 instructions 覆盖模板 |
+| `collection` | 可选：quote/chip/news 开关与 realtimeSources 顺序，仅真实采集 |
+| `context` | 可选：自带 ContextSnapshot，跳过 AIStock；与 collection 互斥 |
 | `waitSeconds` | 0–25，默认 25；0 表示立即返回任务 |
+
+请求体最大 1 MiB。模板管理、采集选项和自带数据格式见 [自定义指南](customization.md)。
 
 POST 在等待期内完成返回 HTTP 200，否则返回 HTTP 202、Location 查询地址和 Retry-After: 2。202 不代表最终决策。连接断开或等待结束不会取消分析。查询使用 GET，不会重新调用模型。
 

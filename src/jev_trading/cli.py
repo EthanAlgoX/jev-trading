@@ -17,13 +17,16 @@ def add_collection_options(parser):
     parser.add_argument("--aistock-python", type=Path,
                         default=Path(os.getenv("AISTOCK_PYTHON", "../AI-Stock/.venv/bin/python")))
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
+    parser.add_argument("--collection-options", type=json.loads, default={}, help="JSON: quote/chip/news switches and realtimeSources priority")
     parser.add_argument("--collection-timeout", type=float, default=300)
 
 
 def load_context(args):
     if getattr(args, "context", None):
+        if args.collection_options:
+            raise ValueError("--context cannot be combined with --collection-options")
         return ContextSnapshot.model_validate_json(args.context.read_text(encoding="utf-8"))
-    return collect(args.symbol, args.aistock_path, args.aistock_python, args.data_dir, args.collection_timeout)
+    return collect(args.symbol, args.aistock_path, args.aistock_python, args.data_dir, args.collection_timeout, args.collection_options)
 
 
 def main() -> int:

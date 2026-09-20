@@ -32,6 +32,9 @@ class SuppliedClassifier:
 def main():
     payload = json.load(sys.stdin)
     context = ContextSnapshot.model_validate(payload["context"])
+    if payload["operation"] == "validate_context":
+        print("{}")
+        return
     config = DecisionConfig.model_validate(payload["config"])
     if payload["operation"] == "prepare":
         expires = context.captured_at + timedelta(seconds=config.validity_seconds)

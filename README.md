@@ -169,6 +169,10 @@ This checks paths, the collection entry point, and required settings. **It does 
 
 Submit and wait for collection → classification → validation and saving. Execution timing and costs are evaluation assumptions, not instructions to place an order.
 
+### Customize your analysis
+
+Choose any supported symbol per request. Save reusable decision prompts in the web workbench, control quote/chip/news collection and real-time source priority, or submit your own data through the API. Strategy versions and actual prompts are preserved with each result. See the [customization guide](docs/customization.md) (Simplified Chinese) for supported options and examples.
+
 <a id="results"></a>
 ## 3. Read the result
 

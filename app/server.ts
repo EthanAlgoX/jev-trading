@@ -5,10 +5,12 @@ import { DATA, SettingsStore, readiness, type Settings } from "./settings";
 import { JobStore, parseInput, type Job, type JobInput } from "./jobs";
 import { bridge, collectStock, pythonJSON } from "./python";
 import { classifyWithBackend, inferenceMetadata } from "./model";
+import { StrategyStore } from "./customization";
 import { demoContext, demoResponse } from "./demo";
 
 const settings = new SettingsStore();
 const jobs = new JobStore(join(DATA, "workbench.sqlite"));
+const strategies = new StrategyStore(join(DATA, "strategies.sqlite"));
 const clients = new Set<ReadableStreamDefaultController<Uint8Array>>();
 const encoder = new TextEncoder();
 const tasks = new Map<string, Promise<void>>();
@@ -27,12 +29,17 @@ function update(job: Job, changes: Partial<Job>) {
 async function execute(job: Job, current: Settings) {
   const config = { horizon: `未来 ${job.input.horizon} 个交易日`, execution_assumption: job.input.execution,
     cost_assumption: `买卖合计成本及滑点假设为成交金额的 ${job.input.costPercent}%，不代表实际费率。`,
-    strategy_instructions: job.input.instructions || "综合技术面、基本面、新闻、筹码与市场环境，证据不足时观望。",
+    strategy_instructions: job.input.instructions || job.strategy?.instructions || "综合技术面、基本面、新闻、筹码与市场环境，证据不足时观望。",
     position: { state: job.input.position }, validity_seconds: job.input.execution === "immediate" ? 120 : 3600,
     request_timeout_seconds: current.modelTimeoutSeconds };
   try {
-    update(job, { state: "collecting", progress: 15, message: job.mode === "demo" ? "载入合成演示数据" : "正在收集行情、新闻、基本面和技术指标，通常需要数十秒" });
-    const context = job.mode === "demo" ? demoContext() : await collectStock(job.symbol, current, job.id);
+    update(job, { state: "collecting", progress: 15, message: job.mode === "demo" ? "载入合成演示数据" : job.input.context ? "正在检查自带数据快照" : "正在收集行情、新闻、基本面和技术指标，通常需要数十秒" });
+    const context = job.mode === "demo" ? demoContext() : job.input.context ? structuredClone(job.input.context) : await collectStock(job.symbol, current, job.id, job.input.collection);
+    context.provenance = {...context.provenance, decision_input: {
+      source: job.mode === "demo" ? "demo" : job.input.context ? "supplied" : "aistock",
+      collection: job.input.collection ?? null, strategy: job.strategy ?? null,
+      instructions_override: Boolean(job.input.instructions),
+    }};
     const quality = Object.fromEntries(Object.entries(context.pack.blocks).map(([name, value]: [string, any]) => [name, value.status]));
     const model = job.mode === "demo" ? "offline-example-not-a-live-model" : current.backend === "jev" ? current.model : current.localModel;
     const prepared = await bridge({ operation: "prepare", context, config, model });
@@ -63,18 +70,30 @@ async function execute(job: Job, current: Settings) {
   } finally { activeJob = null; }
 }
 
-function submit(input: JobInput, token: string): Job {
+async function submit(input: JobInput, token: string): Promise<Job> {
   if (!/^[a-zA-Z0-9-]{8,100}$/.test(token)) throw new ApiError("INVALID_IDEMPOTENCY_KEY", "Idempotency-Key 应为 8 至 100 位字母、数字或连字符。");
   const previous = jobs.byToken(token);
   if (previous) {
     if (JSON.stringify(previous.input) !== JSON.stringify(input)) throw new ApiError("IDEMPOTENCY_CONFLICT", "相同请求标识对应不同参数。", 409);
     return previous;
   }
+  if (input.context) {
+    try { await bridge({operation: "validate_context", context: input.context}); }
+    catch { throw new ApiError("INVALID_CONTEXT", "数据快照格式不正确，请参阅 docs/customization.md。"); }
+    const existing = jobs.byToken(token);
+    if (existing) {
+      if (JSON.stringify(existing.input) !== JSON.stringify(input)) throw new ApiError("IDEMPOTENCY_CONFLICT", "相同请求标识对应不同参数。", 409);
+      return existing;
+    }
+  }
+  const strategy = input.strategyId ? strategies.get(input.strategyId) : undefined;
+  if (input.strategyId && !strategy) throw new ApiError("STRATEGY_NOT_FOUND", "策略不存在。", 404);
   if (activeJob) throw new ApiError("BUSY", "已有分析正在运行，请稍后重试。", 409);
-  const state = readiness(settings, input.backend, input.localEngine);
+  const state = readiness(settings, input.backend, input.localEngine, Boolean(input.context));
   const current = settings.read(input.backend, input.localEngine);
   if (!(input.mode === "demo" ? state.demoReady : state.ready)) throw new ApiError("NOT_READY", "环境未就绪，请运行 bun run doctor 或查看 /v1/health。", 503);
   const job = jobs.create(input, token);
+  job.strategy = strategy;
   job.backend = input.mode === "demo" ? "recorded" : current.backend; jobs.update(job);
   activeJob = job.id;
   const task = execute(job, current).finally(() => tasks.delete(job.id));
@@ -93,13 +112,22 @@ function trustedRequest(req: Request) {
 }
 
 export const server = Bun.serve({
-  hostname: "127.0.0.1", port, maxRequestBodySize: 32_768, idleTimeout: 60,
+  hostname: "127.0.0.1", port, maxRequestBodySize: 1_048_576, idleTimeout: 60,
   development: process.env.NODE_ENV === "development",
   routes: { "/": page },
   async fetch(req) {
     if (!trustedRequest(req)) return json({ error: { code: "FORBIDDEN", message: "仅接受同源页面或本机 HTTP 客户端的 JSON 请求。" } }, 403);
     const url = new URL(req.url);
     try {
+      if (["/v1/strategies", "/api/strategies"].includes(url.pathname)) {
+        if (req.method === "GET") return json(strategies.list());
+        if (req.method === "POST") return json(strategies.save(await req.json()));
+      }
+      const strategyMatch = url.pathname.match(/^\/(?:v1|api)\/strategies\/([a-f0-9-]{36})$/);
+      if (req.method === "DELETE" && strategyMatch) {
+        if (!strategies.delete(strategyMatch[1])) throw new ApiError("STRATEGY_NOT_FOUND", "策略不存在。", 404);
+        return json({deleted: true});
+      }
       if (req.method === "GET" && url.pathname === "/v1/backends") {
         return json({ default_backend: settings.read().backend, local_engines: (["generated", "logprobs"] as const).map(localEngine => { const state = readiness(settings, "local", localEngine); return {localEngine, probability_method: state.settings.probabilityMethod, configured: state.ready, model: state.settings.localModel}; }), backends: (["jev", "local"] as const).map(backend => {
           const state = readiness(settings, backend);
@@ -110,11 +138,11 @@ export const server = Bun.serve({
       }
       if (req.method === "GET" && url.pathname === "/v1/health") {
         const state = readiness(settings);
-        return json({ api_version: "1", status: "ok", ready: state.ready, demo_ready: state.demoReady, checks: state.checks, active_request_id: activeJob, inference_backend: state.settings.backend, probability_method: state.settings.probabilityMethod });
+        return json({ api_version: "1", status: "ok", ready: state.ready, demo_ready: state.demoReady, supplied_context_ready: readiness(settings, undefined, undefined, true).ready, checks: state.checks, active_request_id: activeJob, inference_backend: state.settings.backend, probability_method: state.settings.probabilityMethod });
       }
       if (req.method === "POST" && url.pathname === "/v1/decisions") {
         const { input, wait } = apiInput(await req.json());
-        const job = submit(input, req.headers.get("idempotency-key") || crypto.randomUUID());
+        const job = await submit(input, req.headers.get("idempotency-key") || crypto.randomUUID());
         await waitForJob(tasks.get(job.id), wait);
         const current = jobs.get(job.id)!;
         const response = json(decisionResponse(current), ["done", "failed"].includes(current.state) ? 200 : 202);
@@ -145,7 +173,7 @@ export const server = Bun.serve({
       if (req.method === "POST" && url.pathname === "/api/jobs") {
         const token = req.headers.get("idempotency-key");
         if (!token) throw new ApiError("INVALID_IDEMPOTENCY_KEY", "缺少请求标识，请刷新后重试。");
-        return json(submit(parseInput(await req.json()), token), 202);
+        return json(await submit(parseInput(await req.json()), token), 202);
       }
       const match = url.pathname.match(/^\/(?:api\/jobs|v1\/decisions)\/([a-f0-9-]+)\/(?:export|evidence)$/);
       if (req.method === "GET" && match) {

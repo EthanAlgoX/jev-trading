@@ -5,7 +5,7 @@ export class ApiError extends Error {
 }
 export function apiInput(body: any) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new ApiError("INVALID_INPUT", "请求必须是 JSON 对象。");
-  const allowed = ["symbol", "mode", "position", "horizon", "costPercent", "execution", "instructions", "waitSeconds", "backend", "localEngine"];
+  const allowed = ["symbol", "mode", "position", "horizon", "costPercent", "execution", "instructions", "waitSeconds", "backend", "localEngine", "strategyId", "collection", "context"];
   if (Object.keys(body).some(k => !allowed.includes(k))) throw new ApiError("INVALID_INPUT", "存在未知参数，请参阅 docs/http-api.md。");
   const wait = body.waitSeconds ?? 25;
   if (!Number.isInteger(wait) || wait < 0 || wait > 25) throw new ApiError("INVALID_INPUT", "waitSeconds 应为 0 至 25 的整数。");

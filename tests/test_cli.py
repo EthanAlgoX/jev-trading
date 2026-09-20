@@ -57,11 +57,12 @@ def test_collector_keeps_venv_interpreter_symlink(tmp_path, context, monkeypatch
         returncode = 0
 
         def __init__(self, args, **kwargs):
+            assert json.loads(args[args.index("--collection-options") + 1]) == {"news": False}
             assert args[0] == str(link)  # resolving symlink bypasses venv site-packages
             Path(args[args.index("--output") + 1]).write_text(context.model_dump_json())
 
         def wait(self, timeout):
             return 0
     monkeypatch.setattr("jev_trading.collector.subprocess.Popen", Process)
-    result = collect(context.symbol, root, link, tmp_path / "data")
+    result = collect(context.symbol, root, link, tmp_path / "data", options={"news": False})
     assert result == context

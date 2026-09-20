@@ -1,11 +1,12 @@
 import { backendName, engineName, legacyEngine, type LocalEngine, type Backend } from "./backends";
+import { collectionOptions, type CollectionOptions, type Strategy } from "./customization";
 import { Database } from "bun:sqlite";
 
 export type JobState = "queued" | "collecting" | "evaluating" | "validating" | "done" | "failed";
 export interface Job { id: string; symbol: string; mode: "demo" | "live"; state: JobState; progress: number;
-  backend?: Backend | "recorded"; createdAt: string; message: string; input: JobInput; result?: any; quality?: Record<string, string>; }
+  strategy?: Strategy; backend?: Backend | "recorded"; createdAt: string; message: string; input: JobInput; result?: any; quality?: Record<string, string>; }
 export interface JobInput { backend?: Backend; localEngine?: LocalEngine; symbol: string; mode: "demo" | "live"; horizon: number; position: "flat" | "long";
-  costPercent: number; execution: "next_session_open" | "immediate"; instructions: string; }
+  costPercent: number; execution: "next_session_open" | "immediate"; instructions: string; strategyId?: string; collection?: CollectionOptions; context?: Record<string, any>; }
 
 export function parseInput(body: any): JobInput {
   if (!body || typeof body !== "object") throw new Error("请填写分析参数。");
@@ -17,7 +18,14 @@ export function parseInput(body: any): JobInput {
   if (!["next_session_open", "immediate"].includes(body.execution)) throw new Error("请选择执行假设。");
   if (typeof body.costPercent !== "number" || !Number.isFinite(body.costPercent) || body.costPercent < 0 || body.costPercent > 10) throw new Error("成本假设应为 0% 至 10%。");
   if (typeof body.instructions !== "string" || body.instructions.length > 8000) throw new Error("策略说明请控制在 8000 字以内。");
-  return { symbol, mode: body.mode, horizon: body.horizon, position: body.position,
+  if (body.strategyId !== undefined && (typeof body.strategyId !== "string" || !/^[a-f0-9-]{36}$/.test(body.strategyId))) throw new Error("策略编号格式不正确。");
+  const collection = body.collection === undefined ? undefined : collectionOptions(body.collection);
+  if (collection && body.mode === "demo") throw new Error("演示不进行采集，请在真实分析中设置采集选项。");
+  if (body.context !== undefined) {
+    if (body.mode !== "live" || !body.context || typeof body.context !== "object" || Array.isArray(body.context) || body.context.symbol !== symbol) throw new Error("自带数据仅用于真实分析，且股票代码须一致。");
+    if (collection !== undefined) throw new Error("自带数据不能同时指定采集选项。");
+  }
+  return { ...(body.strategyId === undefined ? {} : {strategyId: body.strategyId}), ...(collection === undefined ? {} : {collection}), ...(body.context === undefined ? {} : {context: body.context}), symbol, mode: body.mode, horizon: body.horizon, position: body.position,
     costPercent: body.costPercent, execution: body.execution, instructions: body.instructions.trim(), ...(body.backend === undefined ? {} : { backend: backendName(body.backend) }), ...(body.localEngine === undefined && !legacyEngine(body.backend) ? {} : {localEngine: engineName(body.localEngine ?? body.backend)}) };
 }
 

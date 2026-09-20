@@ -1,3 +1,4 @@
+import type { Strategy, CollectionOptions } from "../app/customization";
 import type { Job } from "../app/jobs";
 
 const el = (id: string) => document.getElementById(id)!;
@@ -9,6 +10,7 @@ const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, c => 
 let mode: "demo" | "live" = "demo";
 let status: any = null;
 let jobs: Job[] = [];
+let strategies: Strategy[] = [];
 let selected = localStorage.getItem("jev-selected") || "";
 let submitting = false;
 let realSymbol = "600519";
@@ -16,7 +18,7 @@ let pendingSubmission: { token: string; body: string } | null = null;
 const actions: Record<string, string> = { buy: "买入", sell: "卖出", hold: "观望" };
 const statuses: Record<string, string> = { accepted: "通过校验", blocked: "已限制动作", skipped: "数据未就绪", error: "模型调用失败", expired: "信号已过期" };
 const dataNames: Record<string, string> = { quote: "实时行情", daily_bars: "历史行情", technical: "技术指标", fundamentals: "基本面", news: "新闻资讯", chip: "筹码分布", portfolio: "持仓信息" };
-const dataStates: Record<string, string> = { available: "可用", partial: "部分可用", estimated: "估算", missing: "缺失", not_supported: "不支持", fetch_failed: "获取失败", fallback: "备用来源", stale: "已过期" };
+const dataStates: Record<string, string> = { disabled: "已关闭", available: "可用", partial: "部分可用", estimated: "估算", missing: "缺失", not_supported: "不支持", fetch_failed: "获取失败", fallback: "备用来源", stale: "已过期" };
 const reasons: Record<string, string> = {
   CONSERVATIVE_MARKET: "大盘环境偏谨慎，本次不增加仓位。", HOLDING_CONTEXT_REQUIRED: "缺少明确持仓状态，暂不改变仓位。",
   NO_LONG_POSITION: "当前为空仓，不能执行卖出。", BUY_NOT_ALLOWED: "当前账户约束不允许买入。", SELL_NOT_ALLOWED: "当前账户约束不允许卖出。",
@@ -47,7 +49,7 @@ async function api(path: string, body?: unknown, token?: string) {
     ...(token ? { "idempotency-key": token } : {}),
   }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || "请求失败，请重试。");
+  if (!response.ok) throw new Error(result.error?.message || result.error || "请求失败，请重试。");
   return result;
 }
 function setSettings(open: boolean) {
@@ -67,6 +69,7 @@ function refreshControls() {
   button("analyze").disabled = busy() || !(mode === "demo" ? status?.demoReady : status?.ready);
   button("analyze").innerHTML = busy() ? "分析正在进行…" : `${mode === "demo" ? "体验一次决策" : "开始分析"} <span aria-hidden="true">→</span>`;
   button("save-settings").disabled = busy();
+  for (const id of ["collect-quote", "collect-chip", "collect-news", "collect-sources"]) field(id).disabled = mode === "demo" || busy();
 }
 function renderBackendSettings() {
   const backend = field("backend").value;
@@ -148,6 +151,7 @@ function renderResult() {
   const signal = job.result, isExpired = expired(job);
   const action = isExpired ? "hold" : signal.final_action;
   const signalStatus = isExpired ? "expired" : signal.status;
+  text("result-strategy", job.strategy ? `策略：${job.strategy.name} · v${job.strategy.version}${job.input.instructions && job.input.instructions !== job.strategy.instructions ? "（本次修改了提示词）" : ""}` : "策略：临时偏好或默认策略");
   text("result-symbol", `${job.mode === "demo" ? "DEMO · 演示股票" : job.symbol} / ${job.input.position === "flat" ? "当前空仓" : "当前持有"}`);
   text("action", actions[action] || "未形成动作"); el("action").className = action;
   text("status-label", statuses[signalStatus] || signalStatus);
@@ -203,7 +207,9 @@ el("settings-form").addEventListener("submit", async event => {
 el("stock-form").addEventListener("submit", async event => {
   event.preventDefault(); if (busy()) return;
   const input = { symbol: field("symbol").value, mode, horizon: Number(field("horizon").value), position: field("position").value,
-    execution: field("execution").value, costPercent: Number(field("cost").value), instructions: field("instructions").value };
+    execution: field("execution").value, costPercent: Number(field("cost").value), instructions: field("instructions").value,
+    ...(field("strategy").value ? {strategyId: field("strategy").value} : {}),
+    ...(mode === "live" ? {collection: readCollection()} : {}) };
   const body = JSON.stringify(input);
   if (pendingSubmission?.body !== body) pendingSubmission = { token: crypto.randomUUID(), body };
   submitting = true; refreshControls(); show("global-error", false);
@@ -215,8 +221,53 @@ el("history-body").addEventListener("click", event => {
   const target = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-job]");
   const job = target && jobs.find(j => j.id === target.dataset.job); if (job) { choose(job); el("result-title").scrollIntoView({ block: "start", behavior: "auto" }); }
 });
+
+function readCollection(): CollectionOptions {
+  const options: CollectionOptions = {};
+  for (const key of ["quote", "chip", "news"] as const) {
+    const value = field(`collect-${key}`).value;
+    if (value) options[key] = value === "true";
+  }
+  if (field("collect-sources").value) options.realtimeSources = field("collect-sources").value.split(",");
+  return options;
+}
+async function loadStrategies(selectedId = field("strategy").value) {
+  strategies = await api("/api/strategies");
+  el("strategy").innerHTML = '<option value="">临时策略（不使用模板）</option>' + strategies.map(s => `<option value="${escape(s.id)}">${escape(s.name)} · v${s.version}</option>`).join("");
+  field("strategy").value = strategies.some(s => s.id === selectedId) ? selectedId : "";
+  button("strategy-update").disabled = button("strategy-delete").disabled = !field("strategy").value;
+}
+field("strategy").addEventListener("change", () => {
+  const strategy = strategies.find(s => s.id === field("strategy").value);
+  field("strategy-name").value = strategy?.name || "";
+  if (strategy) field("instructions").value = strategy.instructions;
+  button("strategy-update").disabled = button("strategy-delete").disabled = !strategy;
+  text("strategy-feedback", strategy ? "已载入模板，可直接使用或临时修改。" : "当前提示词作为临时策略使用。");
+});
+async function saveStrategy(update: boolean) {
+  for (const id of ["strategy-create", "strategy-update", "strategy-delete"]) button(id).disabled = true;
+  try {
+    const saved = await api("/api/strategies", {name: field("strategy-name").value, instructions: field("instructions").value,
+      ...(update ? {id: field("strategy").value} : {})});
+    await loadStrategies(saved.id);
+    text("strategy-feedback", `已保存 ${saved.name} · v${saved.version}。已有分析保留原版本。`);
+  } catch (error: any) { text("strategy-feedback", error.message); }
+  finally { button("strategy-create").disabled = false; button("strategy-update").disabled = button("strategy-delete").disabled = !field("strategy").value; }
+}
+button("strategy-create").onclick = () => void saveStrategy(false);
+button("strategy-update").onclick = () => void saveStrategy(true);
+button("strategy-delete").onclick = async () => {
+  button("strategy-delete").disabled = true;
+  try {
+    const response = await fetch(`/api/strategies/${field("strategy").value}`, {method: "DELETE", headers: {"x-jev-request": "1"}});
+    if (!response.ok) throw new Error("删除失败，请重试。");
+    await loadStrategies(""); field("strategy-name").value = "";
+    text("strategy-feedback", "模板已删除；当前提示词和历史记录仍保留。");
+  } catch (error: any) { text("strategy-feedback", error.message); button("strategy-delete").disabled = !field("strategy").value; }
+};
+
 async function initialize() {
-  try { await loadStatus(); jobs = await api("/api/jobs"); if (!jobs.some(j => j.id === selected)) selected = jobs[0]?.id || ""; render(); }
+  try { await loadStatus(); await loadStrategies(); jobs = await api("/api/jobs"); if (!jobs.some(j => j.id === selected)) selected = jobs[0]?.id || ""; render(); }
   catch { text("global-error", "无法连接本地服务，请检查启动终端，刷新页面重试。"); show("global-error", true); }
   const feed = new EventSource("/api/events");
   feed.addEventListener("open", () => { show("connection-error", false); });

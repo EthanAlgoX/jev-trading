@@ -4,6 +4,7 @@ import json
 import time
 import sys
 import uuid
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -26,11 +27,29 @@ def main():
     parser.add_argument("--local-engine", choices=["generated", "logprobs"], help="本地引擎的概率计算方式；省略则使用服务端配置")
     parser.add_argument("--backend", choices=["jev", "local"], help="本次分析使用的后端；省略则使用服务端默认")
     parser.add_argument("--demo", action="store_true")
-    parser.add_argument("--symbol", default="600519")
+    parser.add_argument("--symbol", help="股票代码；自带数据时默认使用快照中的代码，否则默认 600519")
+    parser.add_argument("--instructions", default="", help="本次策略偏好；非空时覆盖模板")
+    parser.add_argument("--strategy-id", help="已保存的策略模板编号")
+    parser.add_argument("--context", type=Path, help="自带 ContextSnapshot JSON，跳过 AIStock")
+    parser.add_argument("--collection", type=Path, help="采集选项 JSON 文件")
     parser.add_argument("--position", choices=["flat", "long"], default="flat")
     parser.add_argument("--request-id", help="恢复查询已有请求，不创建新分析")
     parser.add_argument("--idempotency-key", default=None, help="重复提交时复用同一个标识")
     args = parser.parse_args()
+    if args.context and args.collection:
+        parser.error("--context 和 --collection 不能同时使用")
+    if args.demo and (args.context or args.collection):
+        parser.error("演示不支持自带数据或采集配置")
+    context = collection = None
+    try:
+        if args.context:
+            context = json.loads(args.context.read_text(encoding="utf-8"))
+            if not isinstance(context, dict):
+                raise ValueError("context 必须是 JSON 对象")
+        if args.collection:
+            collection = json.loads(args.collection.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
     base = args.base_url.rstrip("/")
     key = args.idempotency_key or str(uuid.uuid4())
     if args.request_id:
@@ -39,8 +58,12 @@ def main():
         # Print the key before submission so a network failure can be retried safely.
         print(f"Idempotency-Key: {key}", file=sys.stderr)
         result = request(base, "/v1/decisions", {
-            "symbol": args.symbol, "position": args.position,
+            "symbol": args.symbol or (context or {}).get("symbol") or "600519", "position": args.position,
             "mode": "demo" if args.demo else "live", "waitSeconds": 0,
+            "instructions": args.instructions,
+            **({"strategyId": args.strategy_id} if args.strategy_id else {}),
+            **({"context": context} if args.context else {}),
+            **({"collection": collection} if args.collection else {}),
             **({"backend": args.backend} if args.backend else {}),
             **({"localEngine": args.local_engine} if args.local_engine else {}),
         }, key)
