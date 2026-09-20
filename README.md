@@ -2,99 +2,196 @@
 
 # Jev Trading
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
+### One stock in. A clear, traceable decision signal out.
 
-### Focused stock decisions. Quick integration. Costs you control.
+Market data & news → Model judgment → Policy checks → **Buy / Sell / Hold**
 
-**Official Jev API or a local model. One HTTP interface.**<br>
-Turn market data, indicators, and context into machine-readable **buy / sell / hold** decisions.
+**English** · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-**Official API + Local Models** · **HTTP First** · **Self-hosted** · **Auditable**
-
-[Quick start](#quickstart) · [Cloud or local](#local-inference) · [Live analysis](#live) · [HTTP API](#api) · [Architecture](#architecture) · [Preview](#preview) · [FAQ](#faq)
+[Try the demo](#quickstart) · [Live analysis](#live) · [Read the results](#results) · [HTTP API](#api) · [Troubleshooting](#faq)
 
 </div>
 
----
+![Four steps: enter a stock and position, collect AIStock data, use a cloud or local model, then check and record a decision signal](docs/assets/readme/workflow-en.png)
 
-## A lightweight decision API for your trading workflow
+## What does it do?
 
-**Jev Trading is a stock decision service you deploy and call yourself.** Submit a symbol, position state, and evaluation horizon. Receive structured `buy / sell / hold` decisions, action probabilities, policy results, and supporting evidence. Integrate it with scripts, research tools, or your own trading system.
+**Jev Trading is a stock decision service that runs on your computer.** Use the web workbench or call it from your own software over HTTP. It sends market data, indicators, fundamentals, and news collected by AIStock to a model, then returns a structured decision with a record of the evidence.
 
-Use the **official Jev API** by default without running a model on your machine, or connect the **Local Decision Engine** to open-weight models you download and deploy. Both the web interface and HTTP API support both modes. Changing where inference runs keeps your application’s calling workflow intact.
+For example, submit “`600519`, no current position, next 5 trading days.” Receive a final action, the model's probabilities for the three actions, and any data-quality or policy restrictions.
 
-This project provides self-hosted service software, with an optional web interface for setup, exploration, and history. It produces trading signals; your own system handles order execution.
+- **Analyze a stock:** enter a symbol, position, and horizon; inspect the decision and data quality.
+- **Connect your tools:** choose Jev cloud or a local model through the same API.
+- **Review the evidence:** keep history, input snapshots, and raw model responses locally, with export support.
 
-## Why Jev Trading?
+> **Signals only: no orders are placed.** There is no brokerage account integration, automatic stop-loss, target position sizing, or return backtesting. Action probabilities are not the probability of making a profit.
 
-| Feature | What you gain | How it works today |
+## Choose your starting point
+
+| You want to… | Prepare | Start here |
 | --- | --- | --- |
-| **Focused on decisions** | Results your programs can consume | Reuse AIStock data and indicators, skip long reports, report agents, and notifications, and classify actions directly |
-| **Quick to integrate** | A short path into your workflow | Submit a POST and receive JSON or poll an asynchronous task; a Python client example is included |
-| **Less redundant work** | More control over inference spending | No extra research report; matching inputs and idempotency keys reuse a task; this app does not automatically retry model requests |
-| **Cloud or local** | Choose for your hardware and usage | Official API by default; local inference needs no Jev cloud key; switch with `backend` in the same request format |
-| **Multiple sources, direct classification** | Keep the substance of stock analysis | Quotes, bars, technicals, fundamentals, news, trading-cost distribution data, and market context, with missing/degraded data states |
-| **Programmatic checks** | See what the model suggested and what was allowed | Separate `model_action` and `final_action`; check freshness, positions, probabilities, and market conditions |
-| **Traceable decisions** | Inspect how a result was produced | SQLite snapshots, raw responses, inference provenance, restriction reasons, and evidence export |
-| **No browser required** | Automate calls and review manually when useful | Standalone local HTTP service; optional web settings, progress, history, and a key-free demo |
-
-### A shorter path from analysis to action
-
-```text
-Symbol + position + evaluation horizon
-                  ↓
-Market data + deterministic indicators
-                  ↓
-Official Jev API / Local Decision Engine
-                  ↓
-Policy checks → buy / sell / hold → your workflow
-```
-
-Direct classification removes long-report generation. Idempotency prevents a network resend from starting another analysis. Local inference avoids Jev cloud inference charges, while hardware, electricity, and possible data fees remain. Actual latency and total cost depend on data collection, model, and hardware; no end-to-end speed or savings benchmark is claimed.
-
-## Choose where your model runs
-
-| | Official Jev API · default | Local Decision Engine |
-| --- | --- | --- |
-| Best suited to | Getting started without maintaining a model runtime | Using compatible hardware and controlling your own inference resources |
-| Prepare | Official API key and data collection environment | Model weights, compatible inference service, and data collection environment |
-| Inference location | Jev cloud | Your local service |
-| Main costs | Official API usage and data fees | Hardware, electricity, maintenance, and data fees |
-| Request option | `"backend": "jev"` | `"backend": "local"` |
-
-Tasks and audit records stay on your machine. Cloud mode sends analysis context to Jev. Local mode runs model inference locally, while market and news collection may still use the network. Both modes share the same HTTP interface and decision checks.
+| Explore the workflow | Bun + uv; no key or AIStock needed | [Run the demo](#quickstart) |
+| Analyze real stocks with cloud inference | The above + AIStock + a Jev API key | [Connect live analysis](#live) |
+| Analyze real stocks with your own model | The above + AIStock + model weights and a compatible service | [Connect a local model](#local-inference) |
+| Integrate a script or application | A running local service | [Call the HTTP API](#api) |
 
 <a id="quickstart"></a>
-## Quick start: make your first HTTP call
+## 1. Try the demo first
 
-### 1. Prerequisites
+### Check your tools
 
-| Dependency | Purpose | Needed for demo? |
-| --- | --- | --- |
-| [Bun](https://bun.sh) | HTTP server, web UI, and Jev SDK | Yes |
-| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Set up this project's Python environment | Yes |
-| Python ≥ 3.12 | Data contracts, validation, and audit; environment managed by uv | Yes |
-| AIStock checkout and dependencies | Collect real stock data | No |
-| Jev API key | Cloud inference only; not needed by local backends | No |
+Install [Bun](https://bun.sh) and [uv](https://docs.astral.sh/uv/getting-started/installation/), reopen your terminal, and check that both commands work:
 
-Validated on macOS. Startup scripts use a POSIX shell and `.venv/bin/python`; native Windows operation has not been verified.
+```sh
+bun --version
+uv --version
+```
 
-### 2. Clone and start
+Bun runs the web and HTTP service; uv prepares the project's Python ≥ 3.12 environment. The first launch needs internet access to download dependencies. Startup has been validated on macOS; native Windows startup has not been verified.
+
+### Download and start
 
 ```sh
 git clone --recurse-submodules https://github.com/EthanAlgoX/jev-trading.git
 cd jev-trading
 bun install --frozen-lockfile
-bun run serve
+bun run start
 ```
 
-The launcher runs `uv sync --frozen --no-dev` to prepare Python dependencies. The first run needs an internet connection to download dependencies. The service listens at **http://127.0.0.1:3000**; startup messages are currently in Simplified Chinese.
+Already have the project? Enter its directory and start at `bun install`. The launcher runs `uv sync --frozen --no-dev` automatically.
 
-Keep the terminal running. Press `Ctrl+C` to stop. Use `PORT=3010 bun run serve` to change the port.
+**Open [http://127.0.0.1:3000](http://127.0.0.1:3000).** Seeing the workbench means the web service has started. Keep the terminal running; press `Ctrl+C` to stop it.
 
-### 3. Submit a demo decision
+### Complete your first walkthrough
 
-In another terminal:
+The current app uses Simplified Chinese labels; these are included below so you can find the controls.
+
+1. Keep **Demo** selected (`演示体验`).
+2. Click **Try a decision** (`体验一次决策`).
+3. Review the action, probabilities, and data quality on the right.
+4. Open a record in **Recent analyses** (`最近分析`) or select **Export evidence** (`导出完整依据`).
+
+**The demo uses synthetic data and a fixed response. It calls neither cloud nor local models and never automatically switches to paid analysis.**
+
+<details>
+<summary>Other ways to start: Mac launcher, service only, custom port</summary>
+
+- On Mac, double-click [start.command](start.command). If Bun is missing but Node.js/npm is available, it tries to prepare Bun with npx. uv is still required.
+- `bun run serve`: start the same service without opening a browser automatically.
+- `PORT=3010 bun run serve`: use port 3010; update your browser and client addresses too.
+
+</details>
+
+<a id="live"></a>
+## 2. Connect live stock analysis
+
+Live analysis needs two connections: **AIStock supplies the data; Jev cloud or a local model supplies the judgment.** Cloning this repository does not install AIStock or download model weights.
+
+### Step A — Prepare AIStock
+
+Set up a separate AIStock checkout, install its dependencies and configure data sources according to its own instructions. Keep its separate Python environment. A convenient layout is:
+
+```text
+workspace/
+├── AI-Stock/
+│   └── .venv/bin/python
+└── jev-trading/
+```
+
+This project requires AIStock's `context_only` entry point. It returns analysis data before long-report generation, skipping reports and notifications. Do not reapply the patch if the entry point is already present.
+
+<details>
+<summary>Missing context_only? Apply the supplied patch</summary>
+
+Replace the paths with actual absolute paths:
+
+```sh
+cd /path/to/AI-Stock
+git apply --check /path/to/jev-trading/patches/aistock-context-only.patch
+git apply /path/to/jev-trading/patches/aistock-context-only.patch
+```
+
+Apply only after the check passes. If it fails, check the AIStock version and local changes instead of forcing it. See the [implementation record](docs/implementation.md) for compatibility boundaries.
+
+</details>
+
+### Step B — Choose a model and save settings
+
+| | Jev cloud (default) | Local model |
+| --- | --- | --- |
+| What to prepare | A Jev API key | Downloaded weights and a compatible inference service |
+| Where inference runs | Jev cloud | Your local service |
+| Jev cloud key required? | Yes | No |
+| Costs | API usage and possible data fees | Hardware, power, maintenance, and possible data fees |
+| Request option | `"backend": "jev"` | `"backend": "local"` |
+
+**For cloud inference:** open **Connection settings** (`连接设置`) at the top right. Enter your Jev API key, model name (default `jev-latest`), and AIStock/Python paths if they were not detected, then save. Manage keys in the [TypeSafe console](https://console.typesafe.ai).
+
+<details>
+<summary>Prefer a configuration file? Use .env</summary>
+
+Run this in the project directory. If `.env` already exists, edit it instead of overwriting it:
+
+```sh
+cp .env.example .env
+```
+
+```dotenv
+TYPESAFE_AI_API_KEY=your_jev_api_key
+JEV_MODEL_ID=jev-latest
+AISTOCK_PATH=/absolute/path/to/AI-Stock
+AISTOCK_PYTHON=/absolute/path/to/AI-Stock/.venv/bin/python
+```
+
+Replace the example values and restart the service. **Saved web settings take precedence over `.env`.** An empty key submitted in the web form keeps the existing key.
+
+</details>
+
+<a id="local-inference"></a>
+**For local inference:** follow the [local deployment guide](docs/local-inference.md) to prepare weights and a compatible service first. In Connection settings, choose the local engine (`本地决策引擎`) and enter its address, model name, and probability method. A normal chat endpoint cannot replace the required `/v1/systemone` endpoint. Use `bun run backend:check` to probe the backend readiness endpoint.
+
+Cloud mode sends analysis context to Jev. Local mode runs model inference on your computer, but market and news collection may still use the internet. A local failure never automatically falls back to the cloud.
+
+### Step C — Check and analyze
+
+```sh
+bun run doctor
+```
+
+This checks paths, the collection entry point, and required settings. **It does not prove that external data sources or model credentials work.** Return to the web UI, switch to **Live analysis** (`真实分析`), and fill in:
+
+| Input | What to enter |
+| --- | --- |
+| Symbol | For example `600519`, `AAPL`, or `HK00700`; coverage depends on data sources |
+| Current position | Flat or already holding; the service does not read your brokerage account |
+| Horizon | The web UI offers 5, 10, or 20 trading days |
+| Assumptions (optional) | Execution timing, round-trip costs and slippage, strategy preferences |
+
+Submit and wait for collection → classification → validation and saving. Execution timing and costs are evaluation assumptions, not instructions to place an order.
+
+<a id="results"></a>
+## 3. Read the result
+
+**Start with the final action, then check status, expiry, and restriction reasons.** Policy checks can change the model's suggestion: degraded technical data can turn a model's buy into a final hold.
+
+| Result | Meaning |
+| --- | --- |
+| `buy` | A signal to increase long exposure |
+| `sell` | A signal to reduce an existing long position; never interpreted as opening a short when flat |
+| `hold` | Keep the position unchanged; may reflect the model, a restriction, or expiry |
+| `model_action` | The model's original suggestion |
+| `final_action` | The action after policy checks |
+| `status` | `accepted`, `blocked`, `skipped`, `error`, or `expired` |
+| `reason_codes` / `warnings` | Restrictions, missing data, and other context |
+| `valid_until` | Signal expiry; expired queries return a `hold / expired` view |
+| `action_probabilities` | Probabilities across actions, **not profit odds** |
+
+`state: done` means processing has finished, not that a valid signal or a successful trade exists. API clients should also check `mode` so demo output is not used as a live judgment.
+
+<a id="api"></a>
+## 4. Call it from your own software
+
+Keep the service running and submit a demo from **another terminal**:
 
 ```sh
 curl -sS http://127.0.0.1:3000/v1/decisions \
@@ -103,16 +200,13 @@ curl -sS http://127.0.0.1:3000/v1/decisions \
   -d '{"mode":"demo","position":"flat"}'
 ```
 
-The following is an **abbreviated completed response**, omitting configuration, timestamps, and audit fields. Demo probabilities come from a fixed response, not live inference.
+A shortened completed response (fixed demo probabilities):
 
 ```json
 {
-  "api_version": "1",
-  "request_id": "2ab77454-5ac8-49be-a1d5-cdc8b171d505",
   "state": "done",
   "mode": "demo",
   "decision": {
-    "symbol": "DEMO",
     "model_source": "recorded",
     "model_action": "hold",
     "final_action": "hold",
@@ -123,397 +217,131 @@ The following is an **abbreviated completed response**, omitting configuration, 
 }
 ```
 
-HTTP **202** means analysis is still running. Query the path in `links.self`. A demo never automatically switches to paid inference.
+**202** means the task is still running; query `links.self`. The default wait is up to 25 seconds. Set `waitSeconds: 0` to get a task ID immediately. GET queries do not call the model again.
 
-### 4. Use the bundled client
+The included Python client submits and polls automatically, with no third-party HTTP dependencies:
 
 ```sh
-# Submit and poll automatically; no third-party Python HTTP package needed
 python3 examples/http_client.py --demo
+```
 
-# Resume an existing task without another model call
+After configuring live analysis:
+
+```sh
+python3 examples/http_client.py --symbol 600519 --position flat --backend jev
+```
+
+Replace `jev` with `local` for a local model. To query an existing task:
+
+```sh
 python3 examples/http_client.py --request-id "YOUR_REQUEST_ID"
 ```
 
-The [Python client](examples/http_client.py) is a starting point for integrating your application.
-
-<a id="local-inference"></a>
-## Choose a mode: Jev Cloud or Local Decision Engine
-
-| Mode | Probability source | Cloud key required |
-| --- | --- | --- |
-| `jev` (default) | Provider-reported classification probabilities | Yes |
-| `local` | Local Decision Engine; two calculation methods below | No |
-
-Local Decision Engine is this project’s unified integration name. `logprobs` normalizes candidate-label scores with softmax; `generated` asks a model for probability JSON, then validates and normalizes it. These are different statistical methods, recorded as `label_logprobs` and `generated_probabilities`.
-
-Download and load a model and start a compatible service using the [local deployment guide](docs/local-inference.md), then configure:
-
-```dotenv
-JEV_BACKEND=local
-JEV_LOCAL_ENGINE=logprobs
-JEV_LOCAL_BASE_URL=http://127.0.0.1:8000
-JEV_LOCAL_MODEL=jev-latest
-```
-
-Web and HTTP share these settings. Saved settings override environment variables. Run `bun run backend:check`, then `bun run serve`. We do not bundle weights; ordinary chat endpoints need a compatible adapter. See the guide for deployment implementations and attribution.
-
-Save the default mode in the web settings, or select `backend` per HTTP request without changing the default. Jev Cloud is the default; local failures do not fall back to cloud. Advanced requests can set `localEngine` to `generated` or `logprobs`; omission uses the configured local method.
-
-```sh
-curl -sS http://127.0.0.1:3000/v1/decisions \
-  -H 'Content-Type: application/json' \
-  -d '{"symbol":"600519","position":"flat","backend":"local","waitSeconds":0}'
-
-python3 examples/http_client.py --symbol 600519 --backend local
-```
-
-<a id="live"></a>
-## Connect live data and inference
-
-Both inference modes share the AIStock setup below. Cloud mode additionally requires a Jev API key. For local mode, start a compatible service using the [local deployment guide](docs/local-inference.md); no cloud key is needed.
-
-### Prepare AIStock
-
-AIStock collects data and computes indicators in its own Python environment. The supplied `context_only` patch returns analysis data before report generation.
-
-One supported layout:
-
-```text
-workspace/
-├── AI-Stock/                 # Data-source config and separate Python environment
-│   └── .venv/bin/python
-└── reference/
-    └── jev-trading/           # This project and its own Python environment
-```
-
-The service searches for `AI-Stock` beside the project, two levels up, or inside the project. Other paths can be configured explicitly. Follow AIStock's own instructions to install dependencies and configure data sources, then check for the `context_only` entry point.
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /v1/health` | Service and configuration status |
+| `POST /v1/decisions` | Submit an analysis |
+| `GET /v1/decisions/{request_id}` | Progress and result |
+| `GET /v1/decisions/{request_id}/evidence` | Inputs, raw responses, and audit evidence |
 
 <details>
-<summary><strong>Missing the collection entry point? Apply the patch</strong></summary>
-
-Replace these with actual absolute paths:
-
-```sh
-cd /path/to/AI-Stock
-git apply --check /path/to/jev-trading/patches/aistock-context-only.patch
-git apply /path/to/jev-trading/patches/aistock-context-only.patch
-```
-
-Do not reapply an existing patch. If the check fails, inspect version compatibility and local changes rather than forcing an overwrite. See the [initial implementation notes](docs/implementation.md) for scope and validation.
-
-Collection does not generate the original research report or send notifications. Its cache is written to this project's `data/aistock.db`, not AIStock's existing research database.
-
-</details>
-
-### Configure the server
-
-```sh
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```dotenv
-TYPESAFE_AI_API_KEY=your_jev_api_key
-JEV_MODEL_ID=jev-latest
-PORT=3000
-
-# Set actual paths if automatic discovery fails
-AISTOCK_PATH=/path/to/AI-Stock
-AISTOCK_PYTHON=/path/to/AI-Stock/.venv/bin/python
-```
-
-Configure your key through the [TypeSafe console](https://console.typesafe.ai). Restart and check the service:
-
-```sh
-bun run doctor
-bun run serve
-```
-
-In another terminal, check health:
-
-```sh
-curl -sS http://127.0.0.1:3000/v1/health
-```
-
-`ready: true` means local configuration checks passed: paths, interpreter file, collection entry point, and key presence. It **does not verify external data connectivity or key validity**.
-
-### Submit live analysis
+<summary>Live HTTP request, parameters, and retry behavior</summary>
 
 ```sh
 curl -sS http://127.0.0.1:3000/v1/decisions \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: stock-600519-001' \
-  -d '{
-    "symbol": "600519",
-    "position": "flat",
-    "horizon": 5,
-    "execution": "next_session_open",
-    "costPercent": 0.3,
-    "instructions": "Consider trends, fundamentals, and news. Hold when evidence is insufficient."
-  }'
+  -d '{"symbol":"600519","position":"flat","backend":"jev","horizon":5,"execution":"next_session_open","costPercent":0.3,"waitSeconds":0}'
 ```
 
-Omitting `mode` defaults to `live`. Alternatively:
-
-```sh
-python3 examples/http_client.py --symbol 600519 --position flat
-```
-
-Example symbol formats include `600519`, `AAPL`, and `HK00700`. Actual coverage depends on AIStock's data sources. `position` is supplied by the caller; the service does not read your brokerage account.
-
-<a id="api"></a>
-## HTTP API integration
-
-### Endpoints
-
-| Method | Path | Returns |
-| --- | --- | --- |
-| GET | `/v1/health` | Liveness, configuration checks, readiness, and active task |
-| POST | `/v1/decisions` | A new task or a completed decision |
-| GET | `/v1/decisions/{request_id}` | Progress and final decision |
-| GET | `/v1/decisions/{request_id}/evidence` | Context, model request, raw response, and audit signal |
-
-### Request fields
-
-| Field | Required | Default / values |
-| --- | --- | --- |
-| `symbol` | In live mode | Stock symbol; demo uses `DEMO` |
-| `position` | Yes | `flat`: no holding / `long`: already holding |
-| `backend` | No | Per-request `jev` / `local`; omit to use the service default |
-| `mode` | No | `live` / `demo`; defaults to `live` |
-| `horizon` | No | 1–250 trading days; default `5` |
-| `execution` | No | `next_session_open` / `immediate`; defaults to the former |
-| `costPercent` | No | Round-trip cost and slippage assumption, 0–10; default `0.3` (0.3%) |
-| `instructions` | No | Strategy instructions, up to 8,000 characters |
-| `waitSeconds` | No | 0–25 seconds; default `25`; `0` returns a task immediately |
-
-Unknown fields are rejected. Horizon, costs, and execution timing are evaluation assumptions, not instructions to execute a trade.
-
-### Submit once, query as needed
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant C as Your application
-    participant S as Local HTTP service
-    participant W as Collection and decision pipeline
-    C->>S: POST /v1/decisions + idempotency key
-    S->>W: Start stock analysis
-    alt Completed within wait period
-        W-->>S: Result or failure record
-        S-->>C: 200 + state + decision
-    else Wait period exceeded
-        S-->>C: 202 + request_id + Location
-        loop Poll according to Retry-After
-            C->>S: GET /v1/decisions/{id}
-            S-->>C: Current state, decision when complete
-        end
-    end
-```
-
-**Retries:** Generate an `Idempotency-Key` for each new analysis: 8–100 letters, digits, or hyphens. For network retries, reuse the key and analysis parameters; the wait duration may change. Reusing a key with different analysis parameters returns 409. A key is generated if omitted, but a client cannot reliably retry after a lost response without knowing it.
-
-**Waiting:** A 202 includes `Location` and `Retry-After: 2`. Ending the wait or disconnecting does not cancel the task. GET does not call the model again. The service runs one task at a time without a queue; additional work receives `409 BUSY`.
-
-### Interpret results correctly
-
-```text
-HTTP success
-  └─ Check state
-       ├─ In progress → keep polling
-       ├─ failed → read error and handle the failure
-       └─ done → check decision.status, valid_until, and mode
-                    └─ then read decision.final_action
-```
-
-| Field | Meaning |
-| --- | --- |
-| `state` | Task state; `done` only means processing finished |
-| `decision.status` | `accepted`, `blocked`, `skipped`, `error`, or `expired` |
-| `model_action` | Original model action; may be null without a valid model judgment |
-| `final_action` | Policy-checked action; `hold` when blocked or expired |
-| `reason_codes` / `warnings` | Action restrictions, data quality, and other notices |
-| `valid_until` | Signal expiry; expired queries return a `hold / expired` view |
-| `action_probabilities` | Probability distribution over action classes, **not the chance of making a profit** |
-| `model_source` | `jev`: online path / `recorded`: demo or recorded-response path ; `local` |
-
-`buy` increases long exposure, `sell` reduces an existing long holding, and `hold` leaves it unchanged. Selling from a flat position is not interpreted as opening a short.
-
-See the [HTTP API reference](docs/http-api.md) for more response, error, and recovery details (Simplified Chinese).
-
-<a id="architecture"></a>
-## Architecture
-
-```mermaid
-flowchart TD
-    Client["Your script / application"] -->|"HTTP · localhost"| API
-    UI["Optional web UI"] --> API
-    subgraph Local["Your computer"]
-        API["Bun HTTP service<br/>Validation · Idempotency · Task state"]
-        Collect["AIStock / Python<br/>Data collection · Deterministic indicators"]
-        Pre["Input checks<br/>Build questions and context"]
-        SDK["TypeSafe SDK / Local HTTP<br/>buy / sell / hold"]
-        LocalEngine["Local Decision Engine"]
-        SDK <-->|"Local inference"| LocalEngine
-        Policy["Python decision policy<br/>Validate response · Restrict actions"]
-        DB[("SQLite<br/>Tasks · Snapshots · Raw responses")]
-        Result["Structured DecisionSignal"]
-        API --> Collect --> Pre
-        Pre -->|"Usable input"| SDK
-        Pre -->|"Restricted input: record reasons"| Policy
-        SDK --> Policy --> DB
-        Policy --> Result
-    end
-    Sources["External market / news / fundamental data"] --> Collect
-    SDK <-->|"Online inference"| Jev["Jev API"]
-    Result -->|"Return / query"| Client
-```
-
-### Responsibilities
-
-| Layer | Responsibility | Main code |
-| --- | --- | --- |
-| Service | HTTP, task reuse, bounded waiting, query URLs | [server.ts](app/server.ts), [api.ts](app/api.ts) |
-| Data | AIStock context-only collection, coverage and provenance | [collector.py](src/jev_trading/collector.py), [aistock_worker.py](src/jev_trading/aistock_worker.py) |
-| Model | `createTypeSafeAi → evaluationModel → experimental_evaluate` | [model.ts](app/model.ts) |
-| Decision | Probabilities, dates, actions, and model/final differences | [policy.py](src/jev_trading/policy.py), [service.py](src/jev_trading/service.py) |
-| Audit | Inputs, question versions, model responses, and final signals | [storage.py](src/jev_trading/storage.py), [jobs.ts](app/jobs.ts) |
-
-Cloud inference uses the Bun SDK; local backends use compatible HTTP. Python handles collection, data contracts, and audit. The advanced Python CLI retains its own HTTP model adapter; API callers do not have to coordinate the two runtimes.
-
-### Checks and failure handling
-
-- Record restrictions for unavailable core bars/technicals, mismatched dates, or expired context.
-- Immediate-execution assumptions require an open market and sufficiently fresh quotes. Next-open assumptions are still for evaluation only.
-- Block selling from a flat position. Conservative market conditions or degraded core technical data can block buying.
-- Validate the model's action and probability contract. Errors, timeouts, and late results cannot become valid signals to add exposure.
-- Do not retry the model automatically. Restarted services mark unfinished tasks as failed; callers must explicitly request new analysis.
-
-These are basic implemented checks, not a complete migration of AIStock's report policies. They do not validate actual cash, sellable quantity, or all trading rules.
-
-<a id="preview"></a>
-## Optional web workbench
-
-After startup, open [http://127.0.0.1:3000](http://127.0.0.1:3000) to use the same analysis service.
-
-![Desktop workbench: parameters, decision, probabilities, data quality, and history](docs/assets/workbench-desktop.png)
-
-*The UI and screenshots currently use Simplified Chinese. This is a synthetic demo with a fixed response, not live trading performance or a live Jev judgment.*
-
-<details>
-<summary><strong>View the narrow-screen layout</strong></summary>
-
-<p align="center">
-  <img src="docs/assets/workbench-mobile.png" width="360" alt="Narrow-screen analysis form, decision result, and history">
-</p>
-
-Responsive layout does not enable remote phone access. The service still listens on the local loopback address only.
+- `mode` defaults to `live`; `symbol` is required for live mode; `position` is required and must be `flat` or `long`.
+- `horizon`: 1–250 trading days, default 5. `costPercent`: 0–10, default 0.3 (meaning 0.3%).
+- `execution`: `next_session_open` (default) or `immediate`. `instructions`: up to 8000 characters.
+- `backend`: `jev` or `local`; omitted uses the service default. `localEngine`: `logprobs` or `generated`.
+- `waitSeconds`: integer 0–25, default 25. Unknown fields are rejected.
+- Use a new `Idempotency-Key` for each new analysis (8–100 letters, digits, or hyphens). Network retries reuse the original key and identical analysis parameters; waiting time may change. Reusing a key returns the original task.
+- One task runs at a time, with no queue. Busy requests return `409 BUSY`. A 202 response includes `Retry-After: 2` for polling after two seconds.
+- Disconnecting does not cancel a task. This app does not automatically retry model requests. Restarting marks unfinished tasks failed; explicitly submit a new analysis to try again.
 
 </details>
 
-The UI includes connection settings, demo/live selection, progress, history, and evidence export. On macOS, double-click [start.command](start.command). If Node.js/npm is installed but Bun is not, it attempts to obtain Bun through npx. uv remains a prerequisite.
-
-<a id="configuration"></a>
-## Configuration and storage
-
-| Setting | Default / description |
-| --- | --- |
-| `TYPESAFE_AI_API_KEY` | Required for the cloud backend only; also accepts `TYPESAFE_API_KEY` |
-| `JEV_MODEL_ID` | `jev-latest`; also accepts `JEV_MODEL` |
-| `JEV_BACKEND` / `JEV_LOCAL_BASE_URL` | `jev` / `local` · [Local inference](docs/local-inference.md) |
-| `AISTOCK_PATH` | Auto-discovered or explicitly configured AIStock path |
-| `AISTOCK_PYTHON` | Defaults to AIStock's `.venv/bin/python` |
-| `PORT` | `3000`; bind address is fixed to `127.0.0.1` |
-| `JEV_DATA_DIR` | Project `data/`; use separate directories for separate instances |
-| `OPEN_BROWSER` | `0` disables browser launch; already set by `bun run serve` |
-
-Bun loads `.env` automatically. Saved web settings take precedence over environment variables. Restart after changing `.env`. An empty key submitted in the UI preserves the existing key.
-
-```text
-data/
-├── settings.json          # Local connection settings, mode 0600
-├── workbench.sqlite       # Tasks and web history
-├── decisions.db           # Inputs, requests, responses, and signal audit
-├── aistock.db             # Separate market-data cache
-├── contexts/              # Live-analysis input snapshots
-└── collection.log         # Collection diagnostics
-```
-
-The API does not return keys, and keys are not written to analysis records. Git ignores `data/` and `.env`. Decision queries check expiry; evidence export preserves the original signal.
+See the [HTTP API reference](docs/http-api.md) for the full contract.
 
 <a id="faq"></a>
-## FAQ
+## Troubleshooting
 
-| Question / symptom | Explanation / action |
+| Symptom | Next step |
 | --- | --- |
-| Can I try it without a key? | Set `mode: demo`; neither AIStock nor a Jev key is needed |
-| 202 with no decision | Poll `links.self`, or use the Python client |
-| `503 NOT_READY` | Run `bun run doctor` or query `/v1/health` and complete configuration |
-| `409 BUSY` | Another task is running; retry later with the same idempotency key |
-| `409 IDEMPOTENCY_CONFLICT` | Same key, different parameters; use a new key for new analysis |
-| Repeated calls return an old result | You reused a key; generate a new one for new analysis |
-| HTTP 400 | Check JSON, required position, field spelling, and parameter ranges |
-| Jev 401 or model failure | Check the server key, model access, and network, then explicitly retry |
-| Slow or failed collection | Inspect `data/collection.log`, AIStock dependencies, and data sources; HTTP/UI collection limit is 240 seconds |
-| Model says buy, final action is hold | Inspect reason_codes; policy may have blocked buying |
-| ready is true but analysis fails | Readiness does not test every import, data connection, or API permission |
-| Port already in use | Use `PORT=3010 bun run serve` and update your client URL |
-| Public hosting or automated orders? | Local service only; no multi-user authentication, live orders, or complete execution risk checks |
+| `bun` or `uv` not found | Install the tool, reopen the terminal, and run `--version` |
+| Cannot open the workbench | Keep the server terminal running; visit `127.0.0.1:3000`, or use 3010 if the port is occupied |
+| No API key | Try the demo; live local mode still needs AIStock and a compatible model service |
+| `503 NOT_READY` | Run `bun run doctor` and complete the missing settings |
+| Settings changes do not take effect | Saved web settings override `.env`; restart after editing `.env` |
+| 202 / no result yet | Query `links.self`, or let the Python client wait |
+| 409 / old result keeps returning | Retry later for BUSY; use a new key for a new analysis; do not reuse one key with different analysis parameters |
+| Data collection fails | Inspect `data/collection.log` and AIStock dependencies/sources; collection has a 240-second limit |
+| Model failure / 401 | Check credentials, permissions, and network; check the compatible service for local mode, then explicitly retry |
+| Buy becomes hold | Inspect `reason_codes`, data quality, and expiry |
 
-## Development and validation
+<a id="preview"></a>
+## Interface and language support
 
-```sh
-bun run typecheck       # Strict TypeScript checks
-bun test app            # SDK, persistence, and HTTP integration
-uv run pytest -q        # Python contracts, policy, timeout, storage, and CLI
-```
-
-| Validation | Recorded result |
-| --- | --- |
-| TypeScript | Passed |
-| Bun | 18 tests passed, including HTTP integration in a separate process |
-| Python | 38 tests passed |
-| HTTP demo | Submission, polling, idempotency, results, export, and Python client verified |
-| Browser | Desktop and narrow-screen demo, settings, history, and layout checked |
-| Real AIStock collection | Collected 600519; see implementation notes for coverage and limits |
-| Live Jev inference | Not yet verified; SDK contracts tested with mocked HTTP responses |
-
-Passing tests does not establish profitability. There is no return backtest, automatic stop-loss, target-position sizing, or real execution. Historical replay does not guarantee point-in-time completeness.
+This page uses an English workflow illustration. Each of the five READMEs has its own localized image. **The app, logs, and extended documentation are currently mostly in Simplified Chinese.** Localized illustrations do not imply a translated application interface.
 
 <details>
-<summary><strong>Repository structure</strong></summary>
+<summary>View the actual interface (Simplified Chinese, fixed demo sample)</summary>
 
-```text
-jev-trading/
-├── app/                   # Bun HTTP service, Jev SDK, tasks, and tests
-├── web/                   # Optional web interface
-├── src/jev_trading/        # Python collection, contracts, policy, audit, and CLI
-├── tests/                 # Python tests
-├── examples/              # HTTP client, offline inputs, and sample configuration
-├── patches/               # AIStock context-only patch and license
-├── docs/                  # API, architecture, implementation notes, and screenshots
-├── reference/             # jev-trader reference submodule
-├── .env.example           # Server configuration example
-├── start.command          # macOS launcher
-├── package.json / bun.lock
-└── pyproject.toml / uv.lock
+[Desktop screenshot](docs/assets/workbench-desktop.png) · [Mobile-width screenshot](docs/assets/workbench-mobile.png)
+
+These show synthetic demo data and a fixed response, not live inference. Responsive layout does not enable remote phone access.
+
+</details>
+
+<a id="architecture"></a>
+## Development and further reading
+
+Bun handles HTTP, tasks, and model connections. Python collects data, applies checks, and records the audit trail. SQLite stores local records.
+
+| Directory | Responsibility |
+| --- | --- |
+| `app/`, `web/` | Server, model adapters, and web UI |
+| `src/jev_trading/`, `tests/` | Python collection, policies, audit, and tests |
+| `examples/`, `patches/` | Client examples and AIStock adaptation |
+| `reference/` | Pinned jev-trader reference source, not AIStock |
+
+<a id="configuration"></a>
+<details>
+<summary>Configuration, storage, and development checks</summary>
+
+See [.env.example](.env.example). `JEV_DATA_DIR` changes the data directory; `PORT` changes the port. The listening address is fixed at `127.0.0.1`.
+
+| Local file | Contents |
+| --- | --- |
+| `data/settings.json` | Connection settings, permissions 0600 |
+| `data/workbench.sqlite` | Tasks and history |
+| `data/decisions.db` | Inputs, model responses, and decision audit |
+| `data/aistock.db`, `data/contexts/` | Market data cache and input snapshots |
+| `data/collection.log` | Collection diagnostics |
+
+`.env` and `data/` are Git-ignored. API responses do not expose keys, and analysis records do not contain keys.
+
+```sh
+bun run typecheck
+bun test app
+uv run pytest -q
 ```
 
 </details>
 
-## Documentation and attribution
+**Validation scope:** project records cover demo/API tests and a real AIStock collection. Real Jev cloud inference and inference with real local weights remain unverified. Basic checks do not validate account funds, sellable quantities, or complete trading rules. There is no return backtest. The service is local-only, without multi-user authentication.
 
-This README is available in five languages using the links at the top. The application UI, logs, and extended documentation are currently primarily in Simplified Chinese; translated READMEs do not imply a localized application.
+The linked technical guides below are currently in Simplified Chinese.
 
-| Document | Content |
+| Guide | Covers |
 | --- | --- |
-| [HTTP API](docs/http-api.md) | Deployment, requests, polling, and recovery |
-| [Python HTTP client](examples/http_client.py) | Runnable submission and polling example |
-| [Advanced CLI](docs/cli.md) | Collection, recorded-response replay, and audit queries |
-| [Architecture and development plan](docs/architecture-and-development-plan.md) | Scope and layers |
-| [Web and SDK notes](docs/workbench.md) | Integration and validation |
-| [Initial implementation notes](docs/implementation.md) | AIStock patch, real collection, and known limits |
+| [HTTP API](docs/http-api.md) | Parameters, results, errors, and task recovery |
+| [Local inference](docs/local-inference.md) · [Compatible implementations](docs/reference-engines.md) | Deploying models and the adapter protocol |
+| [Advanced CLI](docs/cli.md) | Collection, offline replay, and audit queries |
+| [Architecture](docs/architecture-and-development-plan.md) · [Implementation](docs/implementation.md) · [Workbench](docs/workbench.md) | Design, compatibility boundaries, and validation records |
 
-The project draws on AIStock's stock-analysis workflow and jev-trader's Jev SDK integration. [reference/](reference/) is a pinned Git submodule containing upstream source and its MIT license. Run `git submodule update --init --recursive` in an existing checkout to retrieve it. The AIStock license copy is in [patches/AIStock-LICENSE](patches/AIStock-LICENSE). These upstream licenses do not constitute a separate, unified license declaration for this project's new code.
+This project draws on AIStock's single-stock pipeline and jev-trader's model integration. [reference/](reference/) retains the upstream MIT license; the [AIStock patch license](patches/AIStock-LICENSE) accompanies the patch. These upstream licenses do not establish a unified license for this project's new code.
